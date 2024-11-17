@@ -1,0 +1,12 @@
+set(CompilerFlags -Wall -Wextra -Wpedantic)
+if (CMAKE_BUILD_TYPE MATCHES "Debug")
+    list(APPEND CompilerFlags -g -O0)
+elseif (CMAKE_BUILD_TYPE MATCHES "Release")
+    list(APPEND CompilerFlags -O2)
+endif()
+message(STATUS "Target compiler flags are: ${CompilerFlags}")
+add_compile_options(${CompilerFlags})
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
