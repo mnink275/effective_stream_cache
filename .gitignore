@@ -34,6 +34,9 @@ bld/
 [Ll]og/
 [Ll]ogs/
 
+data/
+dataset/
+
 # Visual Studio 2015/2017 cache/options directory
 .vs/
 
