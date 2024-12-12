@@ -79,4 +79,30 @@ TEST(TinyLFU, HashFuncs) {
   EXPECT_EQ(tiny_lfu.Estimate(1), 1);
 }
 
+TEST(TinyLFU, SerializeDeserialize) {
+  TinyLFU<int64_t, /*kSize=*/100, /*kCounterLimit=*/1000> tiny_lfu(
+    [](int64_t key) { return static_cast<size_t>(key); }
+  );
+  TinyLFU<int64_t, /*kSize=*/100, /*kCounterLimit=*/1000> tiny_lfu_copy(
+    [](int64_t key) { return static_cast<size_t>(key); }
+  );
+
+  for (size_t i = 0; i < 50; ++i) {
+    tiny_lfu.Add(i);
+    tiny_lfu_copy.Add(i);
+  }
+
+  {
+    std::ofstream file("/tmp/tiny_lfu.bin", std::ios::binary);
+    tiny_lfu.Store(file);
+  }
+
+  {
+    tiny_lfu.Clear();
+    std::ifstream file("/tmp/tiny_lfu.bin", std::ios::binary);
+    tiny_lfu.Load(file);
+  }
+  EXPECT_EQ(tiny_lfu, tiny_lfu_copy);
+}
+
 }  // namespace ink::test
