@@ -11,9 +11,8 @@ include(cmake/Sanitizers.cmake)
 include(cmake/Environment.cmake)
 
 add_executable(
-    ${PROJECT_NAME} main.cpp
+    ${PROJECT_NAME} main_lfu.cpp
 )
 
-add_executable(
-    ${PROJECT_NAME}_test test.cpp
-)
+include(CTest)
+add_subdirectory(test)

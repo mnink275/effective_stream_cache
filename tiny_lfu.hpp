@@ -6,21 +6,22 @@
 #include <fstream>
 #include <vector>
 #include <limits>
+#include <functional>
 
 template <class T, size_t kSize, size_t KCounterLimit>
 class TinyLFU final {
  public:
-  using HashFunc = size_t(*)(T key);
+  // using HashFunc = size_t(*)(T key);
+  using HashFunc = std::function<size_t(T)>;
   // TODO: we need no more than log2(kCounterLimit) bits
   // Set CounterType type in constexpr context?
   using CounterType = uint8_t;
 
   static constexpr auto kCounterLimit = KCounterLimit;
 
-  template <class ...Funcs>
-  TinyLFU(Funcs&&... funcs)
+  TinyLFU(std::vector<HashFunc>&& funcs)
     : counters_(),
-      hash_funcs_({funcs...}), global_counter_(0) {}
+      hash_funcs_(std::move(funcs)), global_counter_(0) {}
 
   void Add(T key) {
     if (counters_[GetMinCountIdx(key)] < std::numeric_limits<CounterType>::max()) {

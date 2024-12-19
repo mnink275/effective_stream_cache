@@ -5,9 +5,10 @@
 namespace ink::test {
 
 TEST(TinyLFU, Basics) {
-  TinyLFU<int64_t, /*kSize=*/10, /*kCounterLimit=*/20'000> tiny_lfu(
+  using TLFU = TinyLFU<int64_t, /*kSize=*/10, /*kCounterLimit=*/20'000>;
+  TLFU tiny_lfu(std::vector<TLFU::HashFunc>{
     [](int64_t key) { return static_cast<size_t>(key); },
-    [](int64_t key) { return static_cast<size_t>(2 * key); }
+    [](int64_t key) { return static_cast<size_t>(2 * key); }}
   );
 
   EXPECT_EQ(tiny_lfu.Estimate(1), 0);
@@ -30,8 +31,9 @@ TEST(TinyLFU, Basics) {
 }
 
 TEST(TinyLFU, OneHashFunc) {
-  TinyLFU<int64_t, /*kSize=*/10, /*kCounterLimit=*/20'000> tiny_lfu(
-    [](int64_t key) { return static_cast<size_t>(key); }
+  using TLFU = TinyLFU<int64_t, /*kSize=*/10, /*kCounterLimit=*/20'000>;
+  TLFU tiny_lfu(std::vector<TLFU::HashFunc>{
+    [](int64_t key) { return static_cast<size_t>(key); }}
   );
 
   EXPECT_EQ(tiny_lfu.Estimate(5), 0);
@@ -50,8 +52,9 @@ TEST(TinyLFU, OneHashFunc) {
 
 TEST(TinyLFU, CounterLimit) {
   constexpr size_t kCounterLimit = 10;
-  TinyLFU<int64_t, /*kSize=*/10, /*kCounterLimit=*/kCounterLimit> tiny_lfu(
-    [](int64_t key) { return static_cast<size_t>(key); }
+  using TLFU = TinyLFU<int64_t, /*kSize=*/100, /*kCounterLimit=*/kCounterLimit>;
+  TLFU tiny_lfu(std::vector<TLFU::HashFunc>{
+    [](int64_t key) { return static_cast<size_t>(key); }}
   );
 
   for (size_t i = 1; i <= kCounterLimit; ++i) {
@@ -64,10 +67,11 @@ TEST(TinyLFU, CounterLimit) {
 }
 
 TEST(TinyLFU, HashFuncs) {
-  TinyLFU<int64_t, /*kSize=*/10'000, /*kCounterLimit=*/20'000> tiny_lfu(
+  using TLFU = TinyLFU<int64_t, /*kSize=*/10'000, /*kCounterLimit=*/20'000>;
+  TLFU tiny_lfu(std::vector<TLFU::HashFunc>{
     [](int64_t key) { return static_cast<size_t>(key) * 2654435761 % 2^32; },
     [](int64_t key) { return static_cast<size_t>(key); },
-    [](int64_t key) { return static_cast<size_t>(key) ^ ((key << 17) | (key >> 16)); }
+    [](int64_t key) { return static_cast<size_t>(key) ^ ((key << 17) | (key >> 16)); }}
   );
 
   EXPECT_EQ(tiny_lfu.Estimate(1), 0);
@@ -80,12 +84,14 @@ TEST(TinyLFU, HashFuncs) {
 }
 
 TEST(TinyLFU, SerializeDeserialize) {
-  TinyLFU<int64_t, /*kSize=*/100, /*kCounterLimit=*/1000> tiny_lfu(
-    [](int64_t key) { return static_cast<size_t>(key); }
+  using TLFU = TinyLFU<int64_t, /*kSize=*/100, /*kCounterLimit=*/1000>;
+  TLFU tiny_lfu(std::vector<TLFU::HashFunc>{
+    [](int64_t key) { return static_cast<size_t>(key); }}
   );
-  TinyLFU<int64_t, /*kSize=*/100, /*kCounterLimit=*/1000> tiny_lfu_copy(
+  using TLFU = TinyLFU<int64_t, /*kSize=*/100, /*kCounterLimit=*/1000>;
+  TLFU tiny_lfu_copy(std::vector<TLFU::HashFunc>{
     [](int64_t key) { return static_cast<size_t>(key); }
-  );
+});
 
   for (size_t i = 0; i < 50; ++i) {
     tiny_lfu.Add(i);

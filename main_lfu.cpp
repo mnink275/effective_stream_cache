@@ -58,22 +58,22 @@ Options GetOptions(int argc, char** argv) {
     return options;
 }
 
-int64_t PrintRSS() {
-    // https://stackoverflow.com/questions/669438/how-to-get-memory-usage-at-runtime-using-c
-    std::ifstream file("/proc/self/statm");
-    if (!file.is_open()) {
-        throw std::runtime_error("Can't open /proc/self/statm");
-    }
+// int64_t PrintRSS() {
+//     // https://stackoverflow.com/questions/669438/how-to-get-memory-usage-at-runtime-using-c
+//     std::ifstream file("/proc/self/statm");
+//     if (!file.is_open()) {
+//         throw std::runtime_error("Can't open /proc/self/statm");
+//     }
 
-    int tSize = 0;
-    int resident = 0;
-    int share = 0;
-    file >> tSize >> resident >> share;
+//     int tSize = 0;
+//     int resident = 0;
+//     int share = 0;
+//     file >> tSize >> resident >> share;
 
-    int64_t page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024; // in case x86-64 is configured to use 2MB pages
-    double rss = resident * page_size_kb;
-    return static_cast<int64_t>(rss); // in KB
-}
+//     int64_t page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024; // in case x86-64 is configured to use 2MB pages
+//     double rss = resident * page_size_kb;
+//     return static_cast<int64_t>(rss); // in KB
+// }
 
 }  // namespace utils
 
@@ -214,7 +214,7 @@ std::vector<int64_t> LoadFromFile(const std::string& filename) {
 template <class T, class TCache>
 void RunGetBenchmark(auto& keys, utils::Options options, size_t seed = std::random_device{}()) {
     using namespace std::chrono_literals;
-    const auto beforeBenchmarkRSS =  utils::PrintRSS();
+    // const auto beforeBenchmarkRSS =  utils::PrintRSS();
 
     // std::cout << "Check RRS Start" << std::endl;
     // std::this_thread::sleep_for(5s);
@@ -258,10 +258,10 @@ void RunGetBenchmark(auto& keys, utils::Options options, size_t seed = std::rand
 
     const auto benchmarkTime = std::chrono::high_resolution_clock::now() - start;
 
-    const auto afterBenchmarkRSS = utils::PrintRSS();
+    // const auto afterBenchmarkRSS = utils::PrintRSS();
     // std::cout << "RSS before: " << beforeBenchmarkRSS << " MB" << std::endl;
     // std::cout << "RSS after: " << afterBenchmarkRSS << " MB" << std::endl;
-    std::cout << "RSS: " << afterBenchmarkRSS - beforeBenchmarkRSS - 78125 << " KB" << std::endl;
+    // std::cout << "RSS: " << afterBenchmarkRSS - beforeBenchmarkRSS - 78125 << " KB" << std::endl;
 
     // std::cout << "Data seed: " << seed << std::endl;
     // std::cout << "Benchmark duration: " << std::chrono::duration_cast<std::chrono::milliseconds>(benchmarkTime).count() << " ms" << std::endl;

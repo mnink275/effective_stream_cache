@@ -14,7 +14,7 @@
 
 #include "lru.hpp"
 #include "tiny_lfu.hpp"
-#include "crc32.hpp"
+// #include "crc32.hpp"
 
 namespace cache {
 
@@ -182,7 +182,9 @@ private:
 
     std::array<Record, SMALL_PAGE_SIZE> records_{};
 
-    TinyLFU<Key, SMALL_PAGE_SIZE / 10, KEY_PERIOD> tiny_lfu_{
+    using TLFU = TinyLFU<Key, SMALL_PAGE_SIZE / 10, KEY_PERIOD>;
+
+    TLFU tiny_lfu_{std::vector<TLFU::HashFunc>{
         [](Key key) { return static_cast<size_t>(key) * 2654435761 % 2^32; },
         // [](Key key) { return static_cast<size_t>(key); },
         [](Key i32key) {
@@ -194,7 +196,7 @@ private:
             key += ~(key<<11);
             key ^=  (key>>16);
             return static_cast<size_t>(key); }
-    };
+}};
 
     std::bitset<SMALL_PAGE_SIZE> bloom_filter_;
 };
