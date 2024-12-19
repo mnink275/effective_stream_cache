@@ -17,34 +17,41 @@ class LRU {
   std::optional<Key> UpdateAndEvict(Key key) {
     std::optional<LRU::Key> evicted_key;
 
-    if (key_to_node_.contains(key)) {
-      keys_.erase(key_to_node_[key]);
+    if (const auto it = key_to_node_.find(key); it != key_to_node_.end()) {
+      keys_.splice(keys_.begin(), keys_, it->second);
     } else if (keys_.size() == size_) {
       evicted_key = keys_.back();
-      keys_.pop_back();
+
+      keys_.back() = key;
+      keys_.splice(keys_.begin(), keys_, std::prev(keys_.end()));
+
+      key_to_node_.erase(*evicted_key); // TODO лишняя аллокация, хочется переиспользовать бакет
+      key_to_node_[key] = keys_.begin();
+
       assert(evicted_key);
-      key_to_node_.erase(*evicted_key);
+    } else {
+      keys_.push_front(key);
+      key_to_node_[key] = keys_.begin();
     }
 
-    keys_.push_front(key);
-    key_to_node_[key] = keys_.begin();
+    assert(key_to_node_[key] == keys_.begin());
 
     return evicted_key;
   }
 
   bool Get(Key key) {
-    if (!key_to_node_.contains(key)) return false;
+    const auto it = key_to_node_.find(key);
+    if (it == key_to_node_.end()) return false;
 
-    // TODO: reduce allocations from 2 to 1
-    keys_.erase(key_to_node_[key]);
-    keys_.push_front(key);
-    key_to_node_[key] = keys_.begin();
+    keys_.splice(keys_.begin(), keys_, it->second);
 
+    assert(key_to_node_[key] == keys_.begin());
+    
     return true;
   }
 
  private:
-  size_t size_;
+  const size_t size_;
   std::list<Key> keys_;
   std::unordered_map<Key, It> key_to_node_;
 };
