@@ -25,8 +25,9 @@ class LRU {
       keys_.back() = key;
       keys_.splice(keys_.begin(), keys_, std::prev(keys_.end()));
 
-      key_to_node_.erase(*evicted_key); // TODO лишняя аллокация, хочется переиспользовать бакет
-      key_to_node_[key] = keys_.begin();
+      auto node = key_to_node_.extract(*evicted_key);
+      node.key() = key;
+      key_to_node_.insert(std::move(node));
 
       assert(evicted_key);
     } else {
