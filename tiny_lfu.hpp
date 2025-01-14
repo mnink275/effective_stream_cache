@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <fstream>
 #include <vector>
+#include <limits>
 
 template <class T, size_t kSize, size_t KCounterLimit>
 class TinyLFU final {
@@ -12,7 +13,7 @@ class TinyLFU final {
   using HashFunc = size_t(*)(T key);
   // TODO: we need no more than log2(kCounterLimit) bits
   // Set CounterType type in constexpr context?
-  using CounterType = uint16_t;
+  using CounterType = uint8_t;
 
   static constexpr auto kCounterLimit = KCounterLimit;
 
@@ -22,7 +23,9 @@ class TinyLFU final {
       hash_funcs_({funcs...}), global_counter_(0) {}
 
   void Add(T key) {
-    ++counters_[GetMinCountIdx(key)];
+    if (counters_[GetMinCountIdx(key)] < std::numeric_limits<CounterType>::max()) {
+      ++counters_[GetMinCountIdx(key)];
+    }
 
     if (++global_counter_ > kCounterLimit) {
       DivideCountersBy2();

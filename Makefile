@@ -21,7 +21,7 @@ build-debug build-release: build-%: cmake-%
 # Run
 .PHONY: run-debug run-release
 run-debug run-release: run-%: build-%
-	@./build_$*/cache
+	@./build_$*/cache -s 1
 
 # Run with `clean` step
 .PHONY: clean-run-debug clean-run-release
@@ -42,4 +42,4 @@ format:
 # Run tests in debug
 .PHONY: tests
 tests: build-debug
-	@./build_debug/cache_test
+	@cd build_debug && ctest -V
