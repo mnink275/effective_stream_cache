@@ -30,43 +30,45 @@ int64_t PrintRSS() {
 
 }  // namespace utils
 
-std::vector<int32_t> LoadFromFile(const std::string& filename) {
+std::vector<uint32_t> unique(std::vector<uint32_t> arr) {
+    std::sort(arr.begin(), arr.end());
+    arr.resize(std::unique(arr.begin(), arr.end()) - arr.begin());
+    return arr;
+}
+
+std::vector<uint32_t> LoadFromFile(const std::string& filename) {
     std::ifstream input(filename);
     if (!input.is_open()) {
         throw std::runtime_error(std::string{"Filed to open file: "} + filename);
     }
 
-    // std::set<int32_t> unique;
-
-    std::vector<int32_t> keys;
+    std::vector<uint32_t> keys;
     keys.reserve(1'000'000);
-    while (!input.eof()) {
-        int32_t key;
-        input >> key;
-        // unique.insert(key);
+
+    for (uint32_t key; input >> key;) {
         keys.emplace_back(key);
     }
 
     std::cout << "Total keys count: " << keys.size() << std::endl;
-    // std::cout << "Unique keys count: " << unique.size() << std::endl;
+    std::cout << "Unique keys count: " << unique(keys).size() << std::endl;
 
     return keys;
 }
 
-template <class TCache>
-void RunGetBenchmark(auto& keys) {
+template <class TCache, typename... CacheArgs>
+void RunGetBenchmark(const auto& keys, CacheArgs&&... cache_args) {
     using namespace std::chrono_literals;
     const auto beforeBenchmarkRSS =  utils::PrintRSS();
 
     // std::cout << "Check RSS before" << std::endl;
     // std::this_thread::sleep_for(5s);
 
-    TCache cache;
+    TCache cache(std::forward<CacheArgs>(cache_args)...);
 
     size_t hitCount = 0;
     size_t totalCount = 0;
     auto start = std::chrono::high_resolution_clock::now();
-    for (auto& key : keys) {
+    for (auto key : keys) {
         if (cache.Get(key)) {
             hitCount++;
         } else {
@@ -104,7 +106,11 @@ int main() {
   std::cout << "Cache size: " << cache::CACHE_SIZE << '\n';
   std::cout << "Configuration: " << cache::LARGE_PAGE_SHIFT << ' ' << cache::SMALL_PAGE_SHIFT << ' ' << cache::SMALL_PAGE_SIZE_SHIFT << '\n';
 
-  auto benchmark_keys = LoadFromFile("dataset/Financial1.txt");
+//   auto benchmark_keys = LoadFromFile("dataset/Financial1.txt");
+//   auto benchmark_keys = LoadFromFile("dataset/WebSearch1.txt");
+//   auto benchmark_keys = LoadFromFile("dataset/WebSearch2.txt");
+  auto benchmark_keys = LoadFromFile("dataset/big-dataset.txt");
 
   RunGetBenchmark<TCache>(benchmark_keys);
+  RunGetBenchmark<LRU>(benchmark_keys, 5'000'000);
 }
