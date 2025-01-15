@@ -31,11 +31,11 @@ TODO:
 using Key = uint32_t;
 inline const size_t INVALID_HASH = std::numeric_limits<Key>::max();
 
-inline const size_t LARGE_PAGE_SHIFT = 1;
+inline const size_t LARGE_PAGE_SHIFT = 13;
 inline const size_t SMALL_PAGE_SHIFT = 8;
-inline const size_t SMALL_PAGE_SIZE_SHIFT = 9;
+inline const size_t SMALL_PAGE_SIZE_SHIFT = 8;
 inline constexpr bool USE_LRU = true;
-inline constexpr bool USE_BF = false;
+inline constexpr bool USE_BF = true;
 inline constexpr bool USE_SIMD = true;
 
 inline const size_t LARGE_PAGE_NUMBER = 1 << LARGE_PAGE_SHIFT;
@@ -56,7 +56,8 @@ inline size_t SmallPageIndex(Key key) {
 
 inline const size_t SMALL_PAGE_SIZE = (1 << SMALL_PAGE_SIZE_SHIFT);  // количество записей на странице
 
-inline const size_t LOADED_PAGE_NUMBER = LARGE_PAGE_NUMBER / 2;
+// inline const size_t LOADED_PAGE_NUMBER = LARGE_PAGE_NUMBER / 2;
+inline const size_t LOADED_PAGE_NUMBER = 75;
 
 inline const size_t LARGE_PAGE_PERIOD = 10000;  // время, через которое частоты больших страниц /= 2
 inline const size_t KEY_PERIOD = 2000;  // время, через которое частоты ключей /= 2
@@ -91,6 +92,7 @@ public:
     void Load(std::ifstream& file) {
         // ReadFromFile(file, time_);
         tiny_lfu_.Load(file);
+        bloom_filter_.Load(file);
         for (auto& r : records_) {
             ReadFromFile(file, r);
         }
@@ -99,6 +101,7 @@ public:
     void Store(std::ofstream& file) const {
         // WriteToFile(file, time_);
         tiny_lfu_.Store(file);
+        bloom_filter_.Store(file);
         for (const auto& r : records_) {
             WriteToFile(file, r);
         }
