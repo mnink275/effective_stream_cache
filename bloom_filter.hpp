@@ -2,6 +2,8 @@
 
 #include <bitset>
 #include <vector>
+#include <fstream>
+#include <cassert>
 
 namespace cache {
 
@@ -28,7 +30,40 @@ class BloomFilter {
     return true;
   }
 
+  void Clear() {
+    bloom_filter_.reset();
+  }
+
+  void Load(std::ifstream& file) {
+    std::vector<unsigned char> buf((kSize + 7) >> 3);
+    file.read(reinterpret_cast<char*>(buf.data()), buf.size());
+    bloom_filter_ = bitset_from_bytes<kSize>(buf);
+  }
+
+  void Store(std::ofstream& file) const {
+    auto bytes = bitset_to_bytes(bloom_filter_);
+    file.write(reinterpret_cast<char*>(bytes.data()), bytes.size());
+  }
+
  private:
+  // https://stackoverflow.com/a/7463972
+  template<size_t N>
+  std::vector<unsigned char> bitset_to_bytes(const std::bitset<N>& bs) const {
+    std::vector<unsigned char> result((N + 7) >> 3);
+    for (size_t j = 0; j < N; ++j)
+        result[j >> 3] |= (bs[j] << (j & 7));
+    return result;
+  }
+
+  template<size_t N>
+  std::bitset<N> bitset_from_bytes(const std::vector<unsigned char>& buf) const {
+    assert(buf.size() == ((N + 7) >> 3));
+    std::bitset<N> result;
+    for (size_t j = 0; j < N; ++j)
+        result[j] = ((buf[j >> 3] >> (j & 7)) & 1);
+    return result;
+  }
+
   std::vector<HashFunc> hash_funcs_;
   std::bitset<kSize> bloom_filter_;
 };
