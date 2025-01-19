@@ -5,15 +5,11 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 
 add_executable(
-    ${PROJECT_NAME}_test tiny_lfu_test.cpp
+    ${PROJECT_NAME}_test tiny_lfu_test.cpp bloom_filter_test.cpp
 )
 
-# target_include_directories(
-#     ${PROJECT_NAME}_test PRIVATE ${PROJECT_SOURCE_DIR}
-# )
-
 target_link_libraries(
-    ${PROJECT_NAME}_test GTest::gtest_main # ${PROJECT_NAME}_objs
+    ${PROJECT_NAME}_test GTest::gtest_main
 )
 
 include(GoogleTest)
