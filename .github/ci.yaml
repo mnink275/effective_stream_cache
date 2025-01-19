@@ -1,0 +1,22 @@
+name: CI
+
+on: [push, pull_request]
+
+env:
+  BUILD_TYPE: Debug
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Configure CMake
+      run: make cmake-debug
+
+    - name: Build
+      run: make build-debug
+
+    - name: Test
+      run: make tests
