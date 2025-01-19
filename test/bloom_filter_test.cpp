@@ -3,13 +3,14 @@
 #include "../bloom_filter.hpp"
 
 #include <random>
+#include <fstream>
 
-namespace ink::test {
+namespace cache::test {
 
 using Key = uint32_t;
 
 TEST(BloomFilter, AddAndTest) {
-  cache::BloomFilter<Key, /*kSize=*/1000> bf{
+  BloomFilter<Key, /*kSize=*/1000> bf{
     [](Key key) { return static_cast<size_t>(key); },
     [](Key key) { return static_cast<size_t>(2 * key); }
   };
@@ -24,7 +25,7 @@ TEST(BloomFilter, AddAndTest) {
 }
 
 TEST(BloomFilter, AddAndTestCollision) {
-  cache::BloomFilter<Key, /*kSize=*/1000> bf(
+  BloomFilter<Key, /*kSize=*/1000> bf(
     [](Key key) { return static_cast<size_t>(key); },
     [](Key key) { return static_cast<size_t>(2 * key); }
   );
@@ -38,7 +39,7 @@ TEST(BloomFilter, AddAndTestCollision) {
 }
 
 TEST(BloomFilter, LoadFactor) {
-  cache::BloomFilter<Key, /*kSize=*/10> bf(
+  BloomFilter<Key, /*kSize=*/10> bf(
     [](Key key) { return static_cast<size_t>(key); },
     [](Key key) { return static_cast<size_t>(key + 5); }
   );
@@ -54,7 +55,7 @@ TEST(BloomFilter, LoadFactor) {
 }
 
 TEST(BloomFilter, FillAndClear) {
-  cache::BloomFilter<Key, /*kSize=*/10> bf(
+  BloomFilter<Key, /*kSize=*/10> bf(
     [](Key key) { return static_cast<size_t>(key); }
   );
 
@@ -79,7 +80,7 @@ TEST(BloomFilter, FillAndClear) {
 }
 
 TEST(BloomFilter, Mod) {
-  cache::BloomFilter<Key, /*kSize=*/10> bf(
+  BloomFilter<Key, /*kSize=*/10> bf(
     [](Key key) { return static_cast<size_t>(key); }
   );
 
@@ -93,7 +94,7 @@ TEST(BloomFilter, Mod) {
 }
 
 TEST(BloomFilter, SerializeDeserialize) {
-  cache::BloomFilter<Key, /*kSize=*/1000> bf(
+  BloomFilter<Key, /*kSize=*/1000> bf(
     [](Key key) { return static_cast<size_t>(key) * 2654435761 % 2^32; },
     [](Key key) {
         key += ~(key << 15);
@@ -105,7 +106,7 @@ TEST(BloomFilter, SerializeDeserialize) {
         return static_cast<size_t>(key); }
   );
 
-  cache::BloomFilter<Key, /*kSize=*/1000> bf_copy(
+  BloomFilter<Key, /*kSize=*/1000> bf_copy(
     [](Key key) { return static_cast<size_t>(key) * 2654435761 % 2^32; },
     [](Key key) {
         key += ~(key << 15);
@@ -143,4 +144,4 @@ TEST(BloomFilter, SerializeDeserialize) {
   EXPECT_EQ(bf, bf_copy);
 }
 
-}  // namespace ink::test
+}  // namespace cache::test
