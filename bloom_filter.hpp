@@ -13,7 +13,7 @@ class BloomFilter {
   using HashFunc = size_t(*)(T key);
 
   template <class ...Funcs>
-  BloomFilter(Funcs&&... funcs)
+  explicit BloomFilter(Funcs&&... funcs)
     : hash_funcs_({funcs...}), bloom_filter_() {}
 
   void Add(T key) {
@@ -34,6 +34,11 @@ class BloomFilter {
     bloom_filter_.reset();
   }
 
+  [[nodiscard]]
+  double LoadFactor() const {
+    return static_cast<double>(bloom_filter_.count()) / kSize;
+  }
+
   void Load(std::ifstream& file) {
     std::vector<unsigned char> buf((kSize + 7) >> 3);
     file.read(reinterpret_cast<char*>(buf.data()), buf.size());
@@ -43,6 +48,10 @@ class BloomFilter {
   void Store(std::ofstream& file) const {
     auto bytes = bitset_to_bytes(bloom_filter_);
     file.write(reinterpret_cast<char*>(bytes.data()), bytes.size());
+  }
+
+  bool operator==(const BloomFilter& other) const {
+    return bloom_filter_ == other.bloom_filter_;
   }
 
  private:
