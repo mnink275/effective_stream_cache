@@ -5,7 +5,10 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 
 add_executable(
-    ${PROJECT_NAME}_test tiny_lfu_test.cpp bloom_filter_test.cpp
+    ${PROJECT_NAME}_test
+        tiny_lfu_test.cpp
+        bloom_filter_test.cpp
+        cache_test.cpp
 )
 
 target_link_libraries(
