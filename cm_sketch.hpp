@@ -20,30 +20,29 @@ namespace details {
 
 constexpr size_t CM_DEPTH = 4;
 
-inline constexpr int64_t Next2Power(int64_t num) {
+inline constexpr uint32_t Next2Power(uint32_t num) {
   num--;
   num |= num >> 1;
   num |= num >> 2;
   num |= num >> 4;
   num |= num >> 8;
   num |= num >> 16;
-  num |= num >> 32;
 
   return ++num;
 }
 
-template <int64_t NumCounters>
+template <uint32_t NumCounters>
 class Row {
  public:
   constexpr static int RESET_MASK = 0x77; // 0111 0111
   constexpr static int MOD_16_MASK = 0x0F; // 0000 1111
 
-  uint8_t Get(uint64_t value) const {
+  uint8_t Get(uint32_t value) const {
     return (data_[value / 2] >> ((value & 1) * 4)) & MOD_16_MASK;
   }
 
-  void Add(uint64_t value) {
-    uint64_t idx = value / 2; // divide by 2 because data.size() == NumCounters / 2
+  void Add(uint32_t value) {
+    uint32_t idx = value / 2; // divide by 2 because data.size() == NumCounters / 2
     uint8_t shift = (value & 1) * 4; // possible values: 0, 4
     uint8_t v = (data_[idx] >> shift) & MOD_16_MASK;
     if (v < 15) data_[idx] += (1 << shift); // add 1 to the counter
@@ -78,30 +77,30 @@ class Row {
 }  // namespace details
 
 
-template <int64_t NumCounters>
+template <uint32_t NumCounters>
 requires(NumCounters > 0)
 class CountMinSketch {
  public:
-  constexpr static int64_t kNumCounters = details::Next2Power(NumCounters);
+  constexpr static uint32_t kNumCounters = details::Next2Power(NumCounters);
 
   using TRow = details::Row<kNumCounters>;
 
   explicit CountMinSketch() : mask_(kNumCounters - 1) {
     std::random_device rd;
-    std::mt19937_64 rng(rd());
+    std::mt19937 rng(rd());
     for (size_t i = 0; i < details::CM_DEPTH; i++) {
       seeds_[i] = rng();
     }
   }
 
-  void Add(uint64_t key) {
+  void Add(uint32_t key) {
     for (size_t i = 0; i < details::CM_DEPTH; i++) {
       rows_[i].Add((key ^ seeds_[i]) & mask_); // `& mask` is equivalent to `% numCounters`
     }
   }
 
-  uint8_t Estimate(uint64_t key) const {
-    uint8_t minVal = 255;
+  uint8_t Estimate(uint32_t key) const {
+    auto minVal = std::numeric_limits<uint8_t>::max();
     for (size_t i = 0; i < details::CM_DEPTH; i++) {
       uint8_t val = rows_[i].Get((key ^ seeds_[i]) & mask_);
       minVal = std::min(minVal, val);
@@ -147,8 +146,8 @@ class CountMinSketch {
 
  private:
   std::array<TRow, details::CM_DEPTH> rows_{}; // 2 * kNumCounters bytes
-  std::array<uint64_t, details::CM_DEPTH> seeds_{}; // 32 bytes
-  uint64_t mask_; // 8 bytes
+  std::array<uint32_t, details::CM_DEPTH> seeds_{}; // 16 bytes
+  uint32_t mask_; // 4 bytes
 };
 
 }  // namespace cache
