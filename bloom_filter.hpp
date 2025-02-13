@@ -25,9 +25,9 @@ public:
             const auto bit = (h1 + (i * h2)) & (num_bits - 1);
             const auto mask = 1ULL << (bit % 64);
             auto& block = data_[bit / 64];
-            const auto current_bit_value = (block & mask) >> (bit % 64);
+            const auto prev_bit_value = (block & mask) >> (bit % 64);
             block |= mask;
-            was_added &= current_bit_value;
+            was_added &= prev_bit_value;
         }
 
         return was_added;

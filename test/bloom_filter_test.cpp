@@ -47,6 +47,8 @@ TEST(BloomFilter, SerializeDeserialize) {
   BloomFilter bf{1000, 0.01};
   BloomFilter bf_copy{1000, 0.01};
 
+  EXPECT_EQ(bf, bf_copy);
+
   std::random_device rd;
   const auto seed = rd();
   std::cout << "Seed: " << seed << std::endl;

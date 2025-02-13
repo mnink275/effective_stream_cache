@@ -14,22 +14,13 @@
 #include <random>
 #include <array>
 
+#include "utils.hpp"
+
 namespace cache {
 
 namespace details {
 
 constexpr size_t CM_DEPTH = 4;
-
-inline constexpr uint32_t Next2Power(uint32_t num) {
-  num--;
-  num |= num >> 1;
-  num |= num >> 2;
-  num |= num >> 4;
-  num |= num >> 8;
-  num |= num >> 16;
-
-  return ++num;
-}
 
 template <uint32_t NumCounters>
 class Row {
@@ -50,7 +41,7 @@ class Row {
 
   void Reset() {
     for (auto& byte : data_) {
-      byte = (byte >> 1) & RESET_MASK; // reset each counter, e.x. 0011 1011 (shift)-> 0001 1101 (mask)-> 0001 0101
+      byte = (byte >> 1) & RESET_MASK; // reset each counter, e.g. 0011 1011 (shift)-> 0001 1101 (mask)-> 0001 0101
     }
   }
 
@@ -81,7 +72,7 @@ template <uint32_t NumCounters>
 requires(NumCounters > 0)
 class CountMinSketch {
  public:
-  constexpr static uint32_t kNumCounters = details::Next2Power(NumCounters);
+  constexpr static uint32_t kNumCounters = utils::NextPowerOf2(NumCounters);
 
   using TRow = details::Row<kNumCounters>;
 
@@ -117,7 +108,7 @@ class CountMinSketch {
   }
 
   uint64_t GetMask() const { return mask_; }
-  TRow& GetRow(size_t i) { return rows_[i]; }
+  const TRow& GetRow(size_t i) { return rows_[i]; }
 
   void Load(std::ifstream& file) {
     for (auto& row : rows_) {
@@ -136,18 +127,23 @@ class CountMinSketch {
       row.Store(file);
     }
 
-    auto mask = mask_;
-    file.write(reinterpret_cast<char*>(&mask), sizeof(mask));
+    file.write(reinterpret_cast<const char*>(&mask_), sizeof(mask_));
 
     for (auto seed : seeds_) {
       file.write(reinterpret_cast<char*>(&seed), sizeof(seed));
     }
   }
 
+  bool operator==(const CountMinSketch& other) const {
+    return rows_ == other.rows_
+      // && seeds_ == other.seeds_ // seeds may differ
+      && mask_ == other.mask_;
+  }
+
  private:
   std::array<TRow, details::CM_DEPTH> rows_{}; // 2 * kNumCounters bytes
   std::array<uint32_t, details::CM_DEPTH> seeds_{}; // 16 bytes
-  uint32_t mask_; // 4 bytes
+  uint32_t mask_{}; // 4 bytes
 };
 
 }  // namespace cache
