@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "../bloom_filter.hpp"
+#include "../bloom_filter_simple.hpp"
 
 #include <random>
 #include <fstream>
@@ -9,7 +9,7 @@ namespace cache::test {
 
 using Key = uint32_t;
 
-TEST(BloomFilter, AddAndTest) {
+TEST(BloomFilterSimple, AddAndTest) {
   BloomFilter<Key, /*kSize=*/1000> bf{
     [](Key key) { return static_cast<size_t>(key); },
     [](Key key) { return static_cast<size_t>(2 * key); }
@@ -24,7 +24,7 @@ TEST(BloomFilter, AddAndTest) {
   EXPECT_TRUE(bf.Test(2));
 }
 
-TEST(BloomFilter, AddAndTestCollision) {
+TEST(BloomFilterSimple, AddAndTestCollision) {
   BloomFilter<Key, /*kSize=*/1000> bf(
     [](Key key) { return static_cast<size_t>(key); },
     [](Key key) { return static_cast<size_t>(2 * key); }
@@ -38,7 +38,7 @@ TEST(BloomFilter, AddAndTestCollision) {
   EXPECT_TRUE(bf.Test(2)); // collision at 2 and 4
 }
 
-TEST(BloomFilter, LoadFactor) {
+TEST(BloomFilterSimple, LoadFactor) {
   BloomFilter<Key, /*kSize=*/10> bf(
     [](Key key) { return static_cast<size_t>(key); },
     [](Key key) { return static_cast<size_t>(key + 5); }
@@ -54,7 +54,7 @@ TEST(BloomFilter, LoadFactor) {
   EXPECT_DOUBLE_EQ(bf.LoadFactor(), 1.0);
 }
 
-TEST(BloomFilter, FillAndClear) {
+TEST(BloomFilterSimple, FillAndClear) {
   BloomFilter<Key, /*kSize=*/10> bf(
     [](Key key) { return static_cast<size_t>(key); }
   );
@@ -79,7 +79,7 @@ TEST(BloomFilter, FillAndClear) {
   }
 }
 
-TEST(BloomFilter, Mod) {
+TEST(BloomFilterSimple, Mod) {
   BloomFilter<Key, /*kSize=*/10> bf(
     [](Key key) { return static_cast<size_t>(key); }
   );
@@ -93,7 +93,7 @@ TEST(BloomFilter, Mod) {
   EXPECT_TRUE(bf.Test(2));
 }
 
-TEST(BloomFilter, SerializeDeserialize) {
+TEST(BloomFilterSimple, SerializeDeserialize) {
   BloomFilter<Key, /*kSize=*/1000> bf(
     [](Key key) { return static_cast<size_t>(key) * 2654435761 % 2^32; },
     [](Key key) {
