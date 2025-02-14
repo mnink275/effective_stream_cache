@@ -55,62 +55,130 @@ std::vector<uint32_t> LoadFromFile(const std::string& filename) {
     return keys;
 }
 
+struct BenchmarkResult {
+    static constexpr auto CPU_WORKING_CLOCK_GHz = 4.0;
+
+    size_t hitCount;
+    size_t totalCount;
+    std::chrono::nanoseconds benchmarkTime;
+    std::chrono::nanoseconds updatesTime;
+    int64_t RSS;
+
+    void Print() const {
+        std::cout << "RSS: " << RSS / 1024.0 << " MB" << std::endl;
+        std::cout << "Hit ratio: " << (100 * static_cast<double>(hitCount) / totalCount)  << " %" << std::endl;
+
+        const auto opAverageTime = std::chrono::duration_cast<std::chrono::nanoseconds>(benchmarkTime).count() / totalCount;
+        std::cout << "Operation average time: "
+                  << opAverageTime << std::endl;
+
+        const auto getAverageTime = std::chrono::duration_cast<std::chrono::nanoseconds>(benchmarkTime - updatesTime).count() / totalCount;
+        std::cout << "Get average time: "
+                  << getAverageTime << std::endl;
+    }
+
+    BenchmarkResult& operator+=(const BenchmarkResult& other) {
+        hitCount += other.hitCount;
+        totalCount += other.totalCount;
+        benchmarkTime += other.benchmarkTime;
+        updatesTime += other.updatesTime;
+        RSS += other.RSS;
+        return *this;
+    }
+};
+
 template <class TCache, typename... CacheArgs>
-void RunGetBenchmark(const auto& keys, CacheArgs&&... cache_args) {
+BenchmarkResult RunBenchmark(const auto& keys, TCache& cache) {
     using namespace std::chrono_literals;
     const auto beforeBenchmarkRSS =  utils::PrintRSS();
 
-    // std::cout << "Check RSS before" << std::endl;
-    // std::this_thread::sleep_for(5s);
-
-    TCache cache(std::forward<CacheArgs>(cache_args)...);
-
     size_t hitCount = 0;
     size_t totalCount = 0;
+
+    auto updates_time = 0ns;
     auto start = std::chrono::high_resolution_clock::now();
     for (auto key : keys) {
         if (cache.Get(key)) {
             hitCount++;
         } else {
+            auto start_update = std::chrono::high_resolution_clock::now();
             cache.Update(key);
+            updates_time += std::chrono::high_resolution_clock::now() - start_update;
         }
 
         totalCount++;
     }
 
     const auto benchmarkTime = std::chrono::high_resolution_clock::now() - start;
-    // std::cout << "Check RSS after" << std::endl;
-    // std::this_thread::sleep_for(5s);
 
-    const auto afterBenchmarkRSS = utils::PrintRSS();
-    std::cout << "RSS before: " << beforeBenchmarkRSS << " KB" << std::endl;
-    std::cout << "RSS after: " << afterBenchmarkRSS << " KB" << std::endl;
-    std::cout << "RSS: " << afterBenchmarkRSS - beforeBenchmarkRSS << " KB" << std::endl;
-
-    std::cout << "Hit ratio: " << 100 * static_cast<double>(hitCount) / totalCount << " %" << std::endl;
-
-    const auto averageTime = std::chrono::duration_cast<std::chrono::nanoseconds>(benchmarkTime).count() / totalCount;
-    static const auto CPU_WORKING_CLOCK_GHz = 4.0;
-    std::cout << "Get() average time: "
-              << averageTime
-              << " ns (" << static_cast<uint64_t>(averageTime * CPU_WORKING_CLOCK_GHz) << " ticks)" << std::endl;
-
-    std::cout << std::endl;
+    return BenchmarkResult{hitCount, totalCount, benchmarkTime, updates_time, utils::PrintRSS() - beforeBenchmarkRSS};
 }
 
 
 int main() {
-  using namespace std::chrono_literals;
-  using TCache = cache::Cache;
+    using namespace std::chrono_literals;
+    using namespace cache;
 
-  std::cout << "Cache size: " << cache::CACHE_SIZE << '\n';
-  std::cout << "Configuration: " << cache::LARGE_PAGE_SHIFT << ' ' << cache::SMALL_PAGE_SHIFT << ' ' << cache::SMALL_PAGE_SIZE_SHIFT << '\n';
+#define PAGE_BASED_CACHE true
 
-//   auto benchmark_keys = LoadFromFile("dataset/Financial1.txt");
-//   auto benchmark_keys = LoadFromFile("dataset/WebSearch1.txt");
-//   auto benchmark_keys = LoadFromFile("dataset/WebSearch2.txt");
-  auto benchmark_keys = LoadFromFile("dataset/big-dataset.txt");
+#if PAGE_BASED_CACHE
+    std::cout << "Cache size: " << CACHE_SIZE << '\n';
+    std::cout << "Configuration: "
+        << LARGE_PAGE_SHIFT << ' '
+        << SMALL_PAGE_SHIFT << ' '
+        << SMALL_PAGE_SIZE_SHIFT << ' '
+        << "(" << LOADED_PAGE_NUMBER << " loaded)"
+    << '\n';
 
-  RunGetBenchmark<TCache>(benchmark_keys);
-  RunGetBenchmark<LRU>(benchmark_keys, 5'000'000);
+    if (USE_TINY_LFU_FLAG) std::cout << "TinyLFU " << "(" << TLFU_SIZE << ", " << SAMPLE_SIZE << ")\n";
+    else std::cout << "Keys Sample Size: " << SAMPLE_SIZE << '\n';
+    if (USE_LRU) std::cout << "LRU " << (USE_LRU ? LRU_MULTIPLIER * 100 : 0) << "%" << std::endl;
+    if (USE_BF) std::cout << "Bloom filter " << (USE_BF ? "ON" : "OFF") << std::endl;
+    if (USE_SIMD) std::cout << "SIMD " << (USE_SIMD ? "ON" : "OFF") << std::endl;
+#endif
+
+    const size_t kBatchSize = 500'000'000;
+    std::vector<uint32_t> benchmark_keys;
+    benchmark_keys.reserve(kBatchSize);
+
+    BenchmarkResult total_result{0, 0, 0ns, 0ns, 0};
+
+    std::ifstream input("dataset/Financial1.txt");
+    if (!input.is_open()) {
+        throw std::runtime_error("Can't open file");
+    }
+
+    const auto beforeCacheInitRSS = utils::PrintRSS();
+
+#if PAGE_BASED_CACHE
+    using TCache = Cache;
+    TCache cache;
+#else
+    using TCache = LRU;
+    // const size_t CACHE_SIZE = 131584;
+    // const size_t CACHE_SIZE = 524288;
+    const size_t CACHE_SIZE = 5'000'000;
+    TCache cache{CACHE_SIZE};
+#endif
+
+    total_result.RSS += utils::PrintRSS() - beforeCacheInitRSS;
+
+    for (uint32_t key{}; input >> key;) {
+        benchmark_keys.emplace_back(key);
+        if (benchmark_keys.size() == kBatchSize) {
+            auto result = RunBenchmark<TCache>(benchmark_keys, cache);
+
+            total_result += result;
+
+            benchmark_keys.clear();
+            std::cout << "Batch handled" << std::endl;
+        }
+    }
+    if (!benchmark_keys.empty()) {
+        auto result = RunBenchmark<TCache>(benchmark_keys, cache);
+        total_result += result;
+        std::cout << "Batch handled" << std::endl;
+    }
+
+    total_result.Print();
 }

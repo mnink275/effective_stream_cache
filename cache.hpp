@@ -13,7 +13,7 @@
 #include <algorithm>
 
 #include "lru.hpp"
-#include "tiny_lfu.hpp"
+#include "tiny_lfu_cms.hpp"
 #include "bloom_filter.hpp"
 
 
@@ -31,12 +31,40 @@ TODO:
 using Key = uint32_t;
 inline const size_t INVALID_HASH = std::numeric_limits<Key>::max();
 
-inline const size_t LARGE_PAGE_SHIFT = 13;
-inline const size_t SMALL_PAGE_SHIFT = 8;
-inline const size_t SMALL_PAGE_SIZE_SHIFT = 8;
-inline constexpr bool USE_LRU = true;
+inline constexpr size_t LARGE_PAGE_SHIFT = 8;
+inline constexpr size_t SMALL_PAGE_SHIFT = 8;
+inline constexpr size_t SMALL_PAGE_SIZE_SHIFT = 10;
+
+#define USE_LRU_FLAG false
+#define USE_TINY_LFU_FLAG true // use Advanced version with TinyLFU
+#define USE_ENCHANCED false // use Simple version with frequency counters 4-bit sized
+#define USE_BF_FLAG false
+#define USE_SIMD_FLAG true
+
+inline constexpr double LRU_MULTIPLIER = 0.01;
+
+inline constexpr size_t TLFU_SIZE = 512;
+inline constexpr bool TLFU_USE_DOOR_KEEPER = false;
+
+inline constexpr size_t SAMPLE_SIZE = TLFU_SIZE * 10;
+
+#if USE_BF_FLAG
 inline constexpr bool USE_BF = true;
+#else
+inline constexpr bool USE_BF = false;
+#endif
+
+#if USE_SIMD_FLAG
 inline constexpr bool USE_SIMD = true;
+#else
+inline constexpr bool USE_SIMD = false;
+#endif
+
+#if USE_LRU_FLAG
+inline constexpr bool USE_LRU = true;
+#else
+inline constexpr bool USE_LRU = false;
+#endif
 
 inline const size_t LARGE_PAGE_NUMBER = 1 << LARGE_PAGE_SHIFT;
 
@@ -56,11 +84,9 @@ inline size_t SmallPageIndex(Key key) {
 
 inline const size_t SMALL_PAGE_SIZE = (1 << SMALL_PAGE_SIZE_SHIFT);  // количество записей на странице
 
-// inline const size_t LOADED_PAGE_NUMBER = LARGE_PAGE_NUMBER / 2;
-inline const size_t LOADED_PAGE_NUMBER = 75;
+inline const size_t LOADED_PAGE_NUMBER = 20;
 
-inline const size_t LARGE_PAGE_PERIOD = 10000;  // время, через которое частоты больших страниц /= 2
-inline const size_t KEY_PERIOD = 2000;  // время, через которое частоты ключей /= 2
+inline const size_t LARGE_PAGE_PERIOD = 2'000;  // время, через которое частоты больших страниц /= 2
 
 inline const size_t FREQUENCY_THRESHOLD = 370;
 
@@ -76,10 +102,104 @@ void WriteToFile(std::ofstream& file, const T& value) {
     file.write((char*)&value, sizeof(T));
 }
 
+class SmallPageBasic {
+    public:
+    struct Record {
+        void Clear() {
+            frequency = 0;
+            key = INVALID_HASH;  // TODO: придумать что-то
+        }
+    
+        void Load(std::ifstream& file) {
+            ReadFromFile(file, frequency);
+            ReadFromFile(file, key);
+        }
+    
+        void Store(std::ofstream& file) const {
+            WriteToFile(file, frequency);
+            WriteToFile(file, key);
+        }
+    
+        Key frequency{0};
+        Key key{INVALID_HASH};
+    };
 
-class SmallPage {
+    void Clear() {
+        time_ = 0;
+        for (auto& r : records_) {
+            r.Clear();
+        }
+    }
+
+    void Load(std::ifstream& file) {
+        ReadFromFile(file, time_);
+        for (auto& r : records_) {
+            r.Load(file);
+        }
+    }
+
+    void Store(std::ofstream& file) const {
+        WriteToFile(file, time_);
+        for (const auto& r : records_) {
+            r.Store(file);
+        }
+    }
+
+    bool Get(Key key) {
+        if (time_ == SAMPLE_SIZE) {
+            DivFrequency();
+            time_ = 0;
+        }
+
+        ++time_;
+
+        for (size_t i = 0; i < records_.size(); ++i) {
+            if (records_[i].key == key) {
+                ++records_[i].frequency;
+                Raise(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // key не содержится в records_
+    void Update(Key key) {
+        if (time_ == SAMPLE_SIZE) {
+            DivFrequency();
+            time_ = 0;
+        }
+
+        if (records_.back().frequency == 0) {
+            records_.back().frequency = 1;
+            records_.back().key = key;
+            ++time_;
+
+            Raise(records_.size() - 1);
+        }
+    }
+
+private:
+    void DivFrequency() {  // делит все частоты на 2, TODO: эту операцию можно сделать отложенной
+        for (auto& r : records_) {
+            r.frequency >>= 1;
+        }
+    }
+
+    void Raise(size_t i) {  // поднимает запись i в соответствии с частотой
+        while (i && records_[i - 1].frequency < records_[i].frequency) {
+            std::swap(records_[i - 1], records_[i]);
+            --i;
+        }
+    }
+
+    std::array<Record, SMALL_PAGE_SIZE> records_;
+    Key time_{0};
+};
+
+class SmallPageAdvanced {
 public:
-    SmallPage() {
+    SmallPageAdvanced() {
         records_.fill(INVALID_HASH);
     }
 
@@ -92,7 +212,11 @@ public:
     void Load(std::ifstream& file) {
         // ReadFromFile(file, time_);
         tiny_lfu_.Load(file);
+
+#if USE_BF_FLAG
         bloom_filter_.Load(file);
+#endif
+
         for (auto& r : records_) {
             ReadFromFile(file, r);
         }
@@ -101,56 +225,56 @@ public:
     void Store(std::ofstream& file) const {
         // WriteToFile(file, time_);
         tiny_lfu_.Store(file);
+
+#if USE_BF_FLAG
         bloom_filter_.Store(file);
+#endif
+
         for (const auto& r : records_) {
             WriteToFile(file, r);
         }
     }
 
     bool Get(Key key) {
-        // if (time_ == KEY_PERIOD) {
-        //     DivFrequency();
-        //     time_ = 0;
-        // }
-
-        if (USE_BF && !bloom_filter_.Test(key)) {
+#if USE_BF_FLAG
+        if (!bloom_filter_.Test(key)) {
             return false;
         }
+#endif
 
+#if USE_SIMD_FLAG
+        using reg = __m256i;
+        const reg kSignedIntMinReg = _mm256_set1_epi32(std::numeric_limits<int32_t>::min());
 
-        if (USE_SIMD) {
-            using reg = __m256i;
-            const reg kSignedIntMinReg = _mm256_set1_epi32(std::numeric_limits<int32_t>::min());
+        reg x = _mm256_set1_epi32(key);
+        x = _mm256_subs_epi8(x, kSignedIntMinReg);
 
-            reg x = _mm256_set1_epi32(key);
-            x = _mm256_subs_epi8(x, kSignedIntMinReg);
+        size_t N = records_.size();
+        assert(N % 8 == 0);
+        for (size_t i = 0; i < N; i += 8) {
+            reg y = _mm256_load_si256( (reg*) &records_[i] );
+            y = _mm256_subs_epi8(y, kSignedIntMinReg);
 
-            size_t N = records_.size();
-            assert(N % 8 == 0);
-            for (size_t i = 0; i < N; i += 8) {
-                reg y = _mm256_load_si256( (reg*) &records_[i] );
-                y = _mm256_subs_epi8(y, kSignedIntMinReg);
+            reg m = _mm256_cmpeq_epi32(x, y);
+            if (!_mm256_testz_si256(m, m)) {
+                size_t mask = _mm256_movemask_ps((__m256) m);
+                size_t idx = i + __builtin_ctz(mask);
 
-                reg m = _mm256_cmpeq_epi32(x, y);
-                if (!_mm256_testz_si256(m, m)) {
-                    size_t mask = _mm256_movemask_ps((__m256) m);
-                    size_t idx = i + __builtin_ctz(mask);
-
-                    tiny_lfu_.Add(key);
-                    Raise(idx);
-                    return true;
-                }
+                tiny_lfu_.Add(key);
+                Raise(idx);
+                return true;
             }
-        } else {
-            for (size_t i = 0; i < records_.size(); ++i) {
-                if (records_[i] == key) {
-                    tiny_lfu_.Add(key);
-                    Raise(i);
-                    return true;
-                }
+        }
+#else
+        for (size_t i = 0; i < records_.size(); ++i) {
+            if (records_[i] == key) {
+                tiny_lfu_.Add(key);
+                Raise(i);
+                return true;
             }
         }
 
+#endif
         return false;
     }
 
@@ -161,7 +285,10 @@ public:
         if (records_.back() == INVALID_HASH) {
             records_.back() = key;
             tiny_lfu_.Add(key);
-            if (USE_BF) bloom_filter_.Add(key);
+
+#if USE_BF_FLAG
+            bloom_filter_.Add(key);
+#endif
 
             Raise(records_.size() - 1);
             return;
@@ -174,7 +301,10 @@ public:
         if (est_victim < est_key) {
             records_.back() = key;
             tiny_lfu_.Add(key);
-            if (USE_BF) bloom_filter_.Add(key);
+
+#if USE_BF_FLAG
+            bloom_filter_.Add(key);
+#endif
 
             Raise(records_.size() - 1);
         }
@@ -197,21 +327,17 @@ private:
         return INVALID_HASH;
     }
 
-    alignas(32) std::array<uint32_t, SMALL_PAGE_SIZE> records_{};
+    alignas(32) std::array<Key, SMALL_PAGE_SIZE> records_{};
 
-    TinyLFU<Key, SMALL_PAGE_SIZE / 10, KEY_PERIOD> tiny_lfu_{
-        [](Key key) { return static_cast<size_t>(key) * 2654435761 % 2^32; },
-        [](Key i32key) {
-            uint32_t key = i32key;
-            key += ~(key<<15);
-            key ^=  (key>>10);
-            key +=  (key<<3);
-            key ^=  (key>>6);
-            key += ~(key<<11);
-            key ^=  (key>>16);
-            return static_cast<size_t>(key); }
-    };
+    using TTinyLFU = TinyLFU<
+            Key,
+            SAMPLE_SIZE,
+            TLFU_SIZE,
+            TLFU_USE_DOOR_KEEPER
+    >;
+    TTinyLFU tiny_lfu_{};
 
+#if USE_BF_FLAG
     BloomFilter<Key, SMALL_PAGE_SIZE * 6> bloom_filter_{
         [](Key key) { return static_cast<size_t>(key) * 2654435761 % 2^32; },
         [](Key key) {
@@ -239,7 +365,14 @@ private:
             key = (key ^ 0xb55a4f09) ^ (key >> 16);
             return static_cast<size_t>(key); }
     };
+#endif
 };
+
+#if USE_TINY_LFU_FLAG
+using SmallPage = SmallPageAdvanced;
+#else
+using SmallPage = SmallPageSimple;
+#endif
 
 class LargePage {
 public:
@@ -276,7 +409,7 @@ class LargePageProvider {
     using Storage = std::array<LargePage, LOADED_PAGE_NUMBER>;
 
 public:
-    LargePageProvider(std::filesystem::path dir_path) : dir_path_(std::move(dir_path)), storage_(new Storage) {
+    LargePageProvider(std::filesystem::path dir_path) : dir_path_(std::move(dir_path)), storage_(std::make_unique<Storage>()) {
         static_assert(LOADED_PAGE_NUMBER <= LARGE_PAGE_NUMBER);
         static_assert(LARGE_PAGE_SHIFT + SMALL_PAGE_SHIFT + SMALL_PAGE_SIZE_SHIFT <= 8 * sizeof(Key));
         assert(std::filesystem::exists(dir_path));
@@ -324,7 +457,6 @@ public:
             }
         }
 
-        assert(false);
         return std::nullopt;
     }
 
@@ -336,8 +468,6 @@ public:
             }
         }
     }
-
-    ~LargePageProvider() { delete storage_; }
 
 private:
     const std::string dir_path_;
@@ -409,7 +539,7 @@ private:
         }
     }
 
-    Storage* const storage_;
+    std::unique_ptr<Storage> storage_;
     std::array<LargePageInfo, LARGE_PAGE_NUMBER> page_infos;
     std::set<std::pair<size_t, size_t>> loaded_pages_;  // <частота, индекс большой страницы>
     size_t time_{0};
@@ -417,12 +547,17 @@ private:
 
 class Cache {
 public:
-    Cache(std::filesystem::path dir_path = "./data") : provider_(dir_path), lru_(static_cast<size_t>(CACHE_SIZE * 0.05)) {}
+    explicit Cache(std::filesystem::path dir_path = "./data")
+        : provider_(dir_path)
+#if USE_LRU_FLAG
+        , lru_(static_cast<size_t>(CACHE_SIZE * LRU_MULTIPLIER))
+#endif
+        {}
 
     bool Get(Key key) {
-        if (USE_LRU) {
-            if (lru_.Get(key)) return true;
-        }
+#if USE_LRU_FLAG
+        if (lru_.Get(key)) return true;
+#endif
 
         auto maybe_large_page = provider_.Get(key);
 
@@ -432,16 +567,15 @@ public:
     }
 
     void Update(Key key) {
-        if (USE_LRU) {
-            auto lru_evicted = lru_.UpdateAndEvict(key);
-            if (!lru_evicted) return;
+#if USE_LRU_FLAG
+        auto lru_evicted = lru_.UpdateAndEvict(key);
+        if (!lru_evicted) return;
 
-            key = *lru_evicted;
-        }
+        key = *lru_evicted;
+#endif
 
         auto maybe_large_page = provider_.Get(key);
 
-        assert(maybe_large_page.has_value());
         if (!maybe_large_page.has_value()) return;
 
 
@@ -452,7 +586,10 @@ public:
 
 private:
     LargePageProvider provider_;
+
+#if USE_LRU_FLAG
     LRU lru_;
+#endif
 };
 
 }  // namespace cache
