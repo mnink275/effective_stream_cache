@@ -1,80 +1,80 @@
 #pragma once
 
-#include <bitset>
-#include <vector>
+#include <cmath>
 #include <fstream>
-#include <cassert>
+#include <vector>
+#include <cstdint>
 
-namespace cache {
+#include "utils.hpp"
 
-template <class T, size_t kSize>
-class BloomFilter {
- public:
-  using HashFunc = size_t(*)(T key);
+class BloomFilter final {
+public:
+    BloomFilter(int32_t capacity, double falsePositiveRate)
+        : num_bits(std::max(
+            1024U,
+            utils::NextPowerOf2(static_cast<uint32_t>(capacity * -std::log(falsePositiveRate) / (std::log(2.0) * std::log(2.0)))))
+        ),
+        num_hash_func_(std::max(2U, static_cast<uint32_t>(0.7 * num_bits / capacity))),
+        data_((num_bits + 63) / 64, 0) {}
 
-  template <class ...Funcs>
-  explicit BloomFilter(Funcs&&... funcs)
-    : hash_funcs_({funcs...}), bloom_filter_() {}
+    bool Add(uint64_t key) {
+        const auto h1 = static_cast<uint32_t>(key);
+        const auto h2 = static_cast<uint32_t>(key >> 32);
+        bool was_added = true;
+        for (uint32_t i = 0; i < num_hash_func_; i++) {
+            const auto bit = (h1 + (i * h2)) & (num_bits - 1);
+            const auto mask = 1ULL << (bit % 64);
+            auto& block = data_[bit / 64];
+            const auto prev_bit_value = (block & mask) >> (bit % 64);
+            block |= mask;
+            was_added &= prev_bit_value;
+        }
 
-  void Add(T key) {
-    for (const auto& hash_func : hash_funcs_) {
-      bloom_filter_[hash_func(key) % kSize] = true;
+        return was_added;
     }
-  }
 
-  bool Test(T key) const {
-    for (const auto& hash_func : hash_funcs_) {
-      if (!bloom_filter_[hash_func(key) % kSize]) return false;
+    bool Test(uint64_t key) {
+        const auto h1 = static_cast<uint32_t>(key);
+        const auto h2 = static_cast<uint32_t>(key >> 32);
+        bool was_added = true;
+        for (uint32_t i = 0; i < num_hash_func_; i++) {
+            const auto bit = (h1 + (i * h2)) & (num_bits - 1);
+            const auto mask = 1ULL << (bit % 64);
+            const auto block = data_[bit / 64];
+            was_added &= (block & mask) >> (bit % 64);
+        }
+
+        return was_added;
     }
 
-    return true;
-  }
+    void Clear() {
+        std::fill(data_.begin(), data_.end(), 0);
+    }
 
-  void Clear() {
-    bloom_filter_.reset();
-  }
+    void Load(std::ifstream& file) {
+        file.read(reinterpret_cast<char*>(&num_bits), sizeof(num_bits));
+        file.read(reinterpret_cast<char*>(&num_hash_func_), sizeof(num_hash_func_));
+        for (auto& byte : data_) {
+            file.read(reinterpret_cast<char*>(&byte), sizeof(byte));
+        }
+    }
 
-  [[nodiscard]]
-  double LoadFactor() const {
-    return static_cast<double>(bloom_filter_.count()) / kSize;
-  }
+    void Store(std::ofstream& file) const {
+        file.write(reinterpret_cast<const char*>(&num_bits), sizeof(num_bits));
+        file.write(reinterpret_cast<const char*>(&num_hash_func_), sizeof(num_hash_func_));
+        for (auto byte : data_) {
+            file.write(reinterpret_cast<const char*>(&byte), sizeof(byte));
+        }
+    }
 
-  void Load(std::ifstream& file) {
-    std::vector<unsigned char> buf((kSize + 7) >> 3);
-    file.read(reinterpret_cast<char*>(buf.data()), buf.size());
-    bloom_filter_ = bitset_from_bytes<kSize>(buf);
-  }
+    bool operator==(const BloomFilter& other) const {
+        return num_bits == other.num_bits
+            && num_hash_func_ == other.num_hash_func_
+            && data_ == other.data_;
+    }
 
-  void Store(std::ofstream& file) const {
-    auto bytes = bitset_to_bytes(bloom_filter_);
-    file.write(reinterpret_cast<char*>(bytes.data()), bytes.size());
-  }
-
-  bool operator==(const BloomFilter& other) const {
-    return bloom_filter_ == other.bloom_filter_;
-  }
-
- private:
-  // https://stackoverflow.com/a/7463972
-  template<size_t N>
-  std::vector<unsigned char> bitset_to_bytes(const std::bitset<N>& bs) const {
-    std::vector<unsigned char> result((N + 7) >> 3);
-    for (size_t j = 0; j < N; ++j)
-        result[j >> 3] |= (bs[j] << (j & 7));
-    return result;
-  }
-
-  template<size_t N>
-  std::bitset<N> bitset_from_bytes(const std::vector<unsigned char>& buf) const {
-    assert(buf.size() == ((N + 7) >> 3));
-    std::bitset<N> result;
-    for (size_t j = 0; j < N; ++j)
-        result[j] = ((buf[j >> 3] >> (j & 7)) & 1);
-    return result;
-  }
-
-  std::vector<HashFunc> hash_funcs_;
-  std::bitset<kSize> bloom_filter_;
+private:
+    uint32_t num_bits; // size of bit vector in bits
+    uint32_t num_hash_func_; // distinct hash functions needed
+    std::vector<uint64_t> data_;
 };
-
-}  // namespace cache
