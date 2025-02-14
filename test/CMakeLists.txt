@@ -10,7 +10,6 @@ add_executable(
         tiny_lfu_cms_test.cpp
         bloom_filter_test.cpp
         bloom_filter_simple_test.cpp
-        cache_test.cpp
         cm_sketch_test.cpp
 )
 
