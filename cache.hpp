@@ -13,6 +13,7 @@
 #include <algorithm>
 
 #include "lru.hpp"
+// #include "tiny_lfu.hpp"
 #include "tiny_lfu_cms.hpp"
 #include "bloom_filter.hpp"
 
@@ -46,7 +47,7 @@ inline constexpr double LRU_MULTIPLIER = 0.01;
 inline constexpr size_t TLFU_SIZE = 512;
 inline constexpr bool TLFU_USE_DOOR_KEEPER = false;
 
-inline constexpr size_t SAMPLE_SIZE = TLFU_SIZE * 10;
+inline constexpr size_t SAMPLE_SIZE = 5120;
 
 #if USE_BF_FLAG
 inline constexpr bool USE_BF = true;
@@ -335,6 +336,11 @@ private:
             TLFU_SIZE,
             TLFU_USE_DOOR_KEEPER
     >;
+    // using TTinyLFU = TinyLFU<
+    //     Key,
+    //     TLFU_SIZE,
+    //     SAMPLE_SIZE
+    // >;
     TTinyLFU tiny_lfu_{};
 
 #if USE_BF_FLAG
@@ -434,9 +440,10 @@ public:
 
         size_t i = LargePageIndex(key);
         if (page_infos[i].ptr) {
-            loaded_pages_.erase({page_infos[i].frequency, i});
+            auto node = loaded_pages_.extract({page_infos[i].frequency, i});
             page_infos[i].frequency += 1;
-            loaded_pages_.emplace(page_infos[i].frequency, i);
+            node.value().first = page_infos[i].frequency;
+            loaded_pages_.insert(std::move(node));
             return page_infos[i].ptr;
         } else {
             page_infos[i].frequency += 1;
