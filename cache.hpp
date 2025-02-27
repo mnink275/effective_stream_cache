@@ -13,7 +13,6 @@
 #include <algorithm>
 
 #include "lru.hpp"
-// #include "tiny_lfu.hpp"
 #include "tiny_lfu_cms.hpp"
 #include "bloom_filter.hpp"
 
@@ -36,7 +35,7 @@ inline constexpr size_t LARGE_PAGE_SHIFT = 8;
 inline constexpr size_t SMALL_PAGE_SHIFT = 8;
 inline constexpr size_t SMALL_PAGE_SIZE_SHIFT = 10;
 
-#define USE_LRU_FLAG false
+#define USE_LRU_FLAG true
 #define USE_TINY_LFU_FLAG true // use Advanced version with TinyLFU
 #define USE_ENCHANCED false // use Simple version with frequency counters 4-bit sized
 #define USE_BF_FLAG false
@@ -575,7 +574,7 @@ public:
 
     void Update(Key key) {
 #if USE_LRU_FLAG
-        auto lru_evicted = lru_.UpdateAndEvict(key);
+        auto lru_evicted = lru_.Update(std::move(key));
         if (!lru_evicted) return;
 
         key = *lru_evicted;
@@ -595,7 +594,7 @@ private:
     LargePageProvider provider_;
 
 #if USE_LRU_FLAG
-    LRU lru_;
+    LRU<uint32_t> lru_;
 #endif
 };
 
