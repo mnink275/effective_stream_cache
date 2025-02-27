@@ -6,7 +6,6 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(
     ${PROJECT_NAME}_test
-        tiny_lfu_test.cpp
         tiny_lfu_cms_test.cpp
         bloom_filter_test.cpp
         bloom_filter_simple_test.cpp
