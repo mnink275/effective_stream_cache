@@ -31,22 +31,24 @@ TODO:
 using Key = uint32_t;
 inline const size_t INVALID_HASH = std::numeric_limits<Key>::max();
 
-inline constexpr size_t LARGE_PAGE_SHIFT = 8;
+inline constexpr size_t LARGE_PAGE_SHIFT = 13;
 inline constexpr size_t SMALL_PAGE_SHIFT = 8;
 inline constexpr size_t SMALL_PAGE_SIZE_SHIFT = 10;
 
 #define USE_LRU_FLAG true
+inline constexpr double LRU_SIZE = 50'000;
+
+inline constexpr size_t TLFU_SIZE = 1000;
+inline constexpr size_t SAMPLE_SIZE = TLFU_SIZE * 10;
+
+using TTinyLFU = TinyLFU<Key, SAMPLE_SIZE, TLFU_SIZE, false>;
+
 #define USE_TINY_LFU_FLAG true // use Advanced version with TinyLFU
 #define USE_ENCHANCED false // use Simple version with frequency counters 4-bit sized
 #define USE_BF_FLAG false
 #define USE_SIMD_FLAG true
 
-inline constexpr double LRU_MULTIPLIER = 0.01;
-
-inline constexpr size_t TLFU_SIZE = 512;
-inline constexpr bool TLFU_USE_DOOR_KEEPER = false;
-
-inline constexpr size_t SAMPLE_SIZE = 5120;
+#define ENABLE_STATISTICS false
 
 #if USE_BF_FLAG
 inline constexpr bool USE_BF = true;
@@ -103,23 +105,23 @@ void WriteToFile(std::ofstream& file, const T& value) {
 }
 
 class SmallPageBasic {
-    public:
+public:
     struct Record {
         void Clear() {
             frequency = 0;
             key = INVALID_HASH;  // TODO: придумать что-то
         }
-    
+
         void Load(std::ifstream& file) {
             ReadFromFile(file, frequency);
             ReadFromFile(file, key);
         }
-    
+
         void Store(std::ofstream& file) const {
             WriteToFile(file, frequency);
             WriteToFile(file, key);
         }
-    
+
         Key frequency{0};
         Key key{INVALID_HASH};
     };
@@ -199,7 +201,7 @@ private:
 
 class SmallPageAdvanced {
 public:
-    SmallPageAdvanced() {
+    explicit SmallPageAdvanced(TTinyLFU& tiny_lfu) : tiny_lfu_(tiny_lfu) {
         records_.fill(INVALID_HASH);
     }
 
@@ -329,18 +331,7 @@ private:
 
     alignas(32) std::array<Key, SMALL_PAGE_SIZE> records_{};
 
-    using TTinyLFU = TinyLFU<
-            Key,
-            SAMPLE_SIZE,
-            TLFU_SIZE,
-            TLFU_USE_DOOR_KEEPER
-    >;
-    // using TTinyLFU = TinyLFU<
-    //     Key,
-    //     TLFU_SIZE,
-    //     SAMPLE_SIZE
-    // >;
-    TTinyLFU tiny_lfu_{};
+    TTinyLFU& tiny_lfu_;
 
 #if USE_BF_FLAG
     BloomFilter<Key, SMALL_PAGE_SIZE * 6> bloom_filter_{
@@ -381,6 +372,9 @@ using SmallPage = SmallPageSimple;
 
 class LargePage {
 public:
+    explicit LargePage(TTinyLFU& tiny_lfu)
+        : small_pages_(utils::MakeArray<SMALL_PAGE_NUMBER>(SmallPage{tiny_lfu})) {}
+
     void Clear() {
         for (auto& page : small_pages_) {
             page.Clear();
@@ -411,10 +405,14 @@ private:
 };
 
 class LargePageProvider {
-    using Storage = std::array<LargePage, LOADED_PAGE_NUMBER>;
+    struct Storage {
+        explicit Storage(TTinyLFU& tiny_lfu) : large_pages_(utils::MakeArray<LOADED_PAGE_NUMBER>(LargePage{tiny_lfu})) {}
+
+        std::array<LargePage, LOADED_PAGE_NUMBER> large_pages_;
+    };
 
 public:
-    LargePageProvider(std::filesystem::path dir_path) : dir_path_(std::move(dir_path)), storage_(std::make_unique<Storage>()) {
+    LargePageProvider(std::filesystem::path dir_path, TTinyLFU& tiny_lfu) : dir_path_(std::move(dir_path)), storage_(std::make_unique<Storage>(tiny_lfu)) {
         static_assert(LOADED_PAGE_NUMBER <= LARGE_PAGE_NUMBER);
         static_assert(LARGE_PAGE_SHIFT + SMALL_PAGE_SHIFT + SMALL_PAGE_SIZE_SHIFT <= 8 * sizeof(Key));
         assert(std::filesystem::exists(dir_path));
@@ -424,7 +422,7 @@ public:
 
         for (auto [_, i] : loaded_pages_) {
             // TODO: сделать ленивую загрузку
-            page_infos[i].ptr = &((*storage_)[j++]);
+            page_infos[i].ptr = &(storage_->large_pages_[j++]);
             LoadPage(i);
         }
     }
@@ -554,9 +552,9 @@ private:
 class Cache {
 public:
     explicit Cache(std::filesystem::path dir_path = "./data")
-        : provider_(dir_path)
+        : tiny_lfu_(), provider_(dir_path, tiny_lfu_)
 #if USE_LRU_FLAG
-        , lru_(static_cast<size_t>(CACHE_SIZE * LRU_MULTIPLIER))
+        , lru_(static_cast<size_t>(LRU_SIZE))
 #endif
         {}
 
@@ -591,6 +589,7 @@ public:
     void Store() const { provider_.Store(); }
 
 private:
+    TTinyLFU tiny_lfu_{};
     LargePageProvider provider_;
 
 #if USE_LRU_FLAG
