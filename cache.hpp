@@ -692,7 +692,7 @@ public:
 
     void Update(Key key) {
 #if USE_LRU_FLAG
-        auto lru_evicted = lru_.Update(std::move(key));
+        auto lru_evicted = lru_.Update(key);
         if (!lru_evicted) return;
 
         key = *lru_evicted;

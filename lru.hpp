@@ -68,7 +68,7 @@ class LRU final {
     }
   }
 
-  std::optional<Key> Update(Key&& key) {
+  std::optional<Key> Update(Key key) {
     std::optional<Key> evicted_key;
     auto it = map_.find(key, map_.hash_function(), map_.key_eq());
     if (it != map_.end()) {
