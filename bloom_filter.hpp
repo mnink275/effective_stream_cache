@@ -52,19 +52,15 @@ public:
     }
 
     void Load(std::ifstream& file) {
-        file.read(reinterpret_cast<char*>(&num_bits), sizeof(num_bits));
-        file.read(reinterpret_cast<char*>(&num_hash_func_), sizeof(num_hash_func_));
-        for (auto& byte : data_) {
-            file.read(reinterpret_cast<char*>(&byte), sizeof(byte));
-        }
+        utils::BinaryRead(file, &num_bits, sizeof(num_bits));
+        utils::BinaryRead(file, &num_hash_func_, sizeof(num_hash_func_));
+        utils::BinaryRead(file, data_.data(), data_.size() * sizeof(data_[0]));
     }
 
     void Store(std::ofstream& file) const {
-        file.write(reinterpret_cast<const char*>(&num_bits), sizeof(num_bits));
-        file.write(reinterpret_cast<const char*>(&num_hash_func_), sizeof(num_hash_func_));
-        for (auto byte : data_) {
-            file.write(reinterpret_cast<const char*>(&byte), sizeof(byte));
-        }
+        utils::BinaryWrite(file, &num_bits, sizeof(num_bits));
+        utils::BinaryWrite(file, &num_hash_func_, sizeof(num_hash_func_));
+        utils::BinaryWrite(file, data_.data(), data_.size() * sizeof(data_[0]));
     }
 
     bool operator==(const BloomFilter& other) const {

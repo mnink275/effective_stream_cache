@@ -50,15 +50,11 @@ class Row {
   bool operator==(const Row& other) const { return data_ == other.data_; }
 
   void Load(std::ifstream& file) {
-    for (auto& byte : data_) {
-      file.read(reinterpret_cast<char*>(&byte), sizeof(byte));
-    }
+    utils::BinaryRead(file, data_.data(), data_.size());
   }
 
   void Store(std::ofstream& file) const {
-    for (auto byte : data_) {
-      file.write(reinterpret_cast<char*>(&byte), sizeof(byte));
-    }
+    utils::BinaryWrite(file, data_.data(), data_.size());
   }
 
  private:
@@ -114,24 +110,16 @@ class CountMinSketch {
     for (auto& row : rows_) {
       row.Load(file);
     }
-
-    file.read(reinterpret_cast<char*>(&mask_), sizeof(mask_));
-
-    for (auto& seed : seeds_) {
-      file.read(reinterpret_cast<char*>(&seed), sizeof(seed));
-    }
+    utils::BinaryRead(file, &mask_, sizeof(mask_));
+    utils::BinaryRead(file, seeds_.data(), seeds_.size() * sizeof(seeds_[0]));
   }
 
   void Store(std::ofstream& file) const {
     for (auto& row : rows_) {
       row.Store(file);
     }
-
-    file.write(reinterpret_cast<const char*>(&mask_), sizeof(mask_));
-
-    for (auto seed : seeds_) {
-      file.write(reinterpret_cast<char*>(&seed), sizeof(seed));
-    }
+    utils::BinaryWrite(file, &mask_, sizeof(mask_));
+    utils::BinaryWrite(file, seeds_.data(), seeds_.size() * sizeof(seeds_[0]));
   }
 
   bool operator==(const CountMinSketch& other) const {

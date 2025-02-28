@@ -1,3 +1,6 @@
 [submodule "third_party/fmt"]
 	path = third_party/fmt
 	url = https://github.com/fmtlib/fmt.git
+[submodule "third_party/boost_intrusive"]
+	path = third_party/boost_intrusive
+	url = https://github.com/boostorg/intrusive.git

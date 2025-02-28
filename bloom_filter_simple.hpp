@@ -5,6 +5,8 @@
 #include <fstream>
 #include <cassert>
 
+#include "utils.hpp"
+
 namespace cache {
 
 template <class T, size_t kSize>
@@ -41,13 +43,13 @@ class BloomFilter {
 
   void Load(std::ifstream& file) {
     std::vector<unsigned char> buf((kSize + 7) >> 3);
-    file.read(reinterpret_cast<char*>(buf.data()), buf.size());
+    utils::BinaryRead(file, buf.data(), buf.size());
     bloom_filter_ = bitset_from_bytes<kSize>(buf);
   }
 
   void Store(std::ofstream& file) const {
     auto bytes = bitset_to_bytes(bloom_filter_);
-    file.write(reinterpret_cast<char*>(bytes.data()), bytes.size());
+    utils::BinaryWrite(file, bytes.data(), bytes.size());
   }
 
   bool operator==(const BloomFilter& other) const {
