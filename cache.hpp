@@ -489,7 +489,7 @@ public:
     }
 
     template <bool CalledOnUpdate>
-    std::optional<LargePage*> Get(Key key) {
+    LargePage* Get(Key key) {
         if (time_ == LARGE_PAGE_PERIOD) {
             DivFrequency();
             time_ = 0;
@@ -504,30 +504,26 @@ public:
             node.value().first = page_infos[i].frequency;
             loaded_pages_.insert(std::move(node));
             return page_infos[i].ptr;
-        } else {
-            page_infos[i].frequency += 1;
-
-            if (loaded_pages_.begin()->first + FREQUENCY_THRESHOLD < page_infos[i].frequency) {
-                size_t worse = loaded_pages_.begin()->second;
-
-                StorePage(worse);
-
-                page_infos[i].ptr = page_infos[worse].ptr;
-                page_infos[worse].ptr = nullptr;
-
-                loaded_pages_.erase(loaded_pages_.begin());
-
-                LoadPage(i);
-
-                loaded_pages_.emplace(page_infos[i].frequency, i);
-                return page_infos[i].ptr;
-            }
-#if ENABLE_STATISTICS
-            if (CalledOnUpdate) dropped_keys_++;
-#endif
         }
+        page_infos[i].frequency += 1;
 
-        return std::nullopt;
+        if (loaded_pages_.begin()->first + FREQUENCY_THRESHOLD < page_infos[i].frequency) {
+            const size_t worse = loaded_pages_.begin()->second;
+            StorePage(worse);
+
+            page_infos[i].ptr = page_infos[worse].ptr;
+            page_infos[worse].ptr = nullptr;
+            loaded_pages_.erase(loaded_pages_.begin());
+            LoadPage(i);
+            loaded_pages_.emplace(page_infos[i].frequency, i);
+
+            return page_infos[i].ptr;
+        }
+#if ENABLE_STATISTICS
+        if (CalledOnUpdate) dropped_keys_++;
+#endif
+
+        return nullptr;
     }
 
     void Store() const {
@@ -683,11 +679,11 @@ public:
         if (lru_.Get(key)) return true;
 #endif
 
-        auto maybe_large_page = provider_.Get</*CalledOnUpdate=*/false>(key);
+        auto* maybe_large_page = provider_.Get</*CalledOnUpdate=*/false>(key);
 
-        if (!maybe_large_page.has_value()) return false;
+        if (maybe_large_page == nullptr) return false;
 
-        return maybe_large_page.value()->Get(key);
+        return maybe_large_page->Get(key);
     }
 
     void Update(Key key) {
@@ -698,12 +694,11 @@ public:
         key = *lru_evicted;
 #endif
 
-        auto maybe_large_page = provider_.Get</*CalledOnUpdate=*/true>(key);
+        auto* maybe_large_page = provider_.Get</*CalledOnUpdate=*/true>(key);
 
-        if (!maybe_large_page.has_value()) return;
+        if (maybe_large_page == nullptr) return;
 
-
-        maybe_large_page.value()->Update(key);
+        maybe_large_page->Update(key);
     }
 
     void Store() const { provider_.Store(); }
