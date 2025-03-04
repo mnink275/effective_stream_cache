@@ -2,11 +2,6 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
-#include <map>
-#include <random>
-#include <unordered_set>
-#include <thread>
-
 #include "cache.hpp"
 
 namespace utils {
@@ -132,7 +127,7 @@ int main() {
 
     if (USE_TINY_LFU_FLAG) std::cout << "TinyLFU " << "(" << TLFU_SIZE << ", " << SAMPLE_SIZE << ")\n";
     else std::cout << "Keys Sample Size: " << SAMPLE_SIZE << '\n';
-    if (USE_LRU) std::cout << "LRU " << (USE_LRU ? LRU_MULTIPLIER * 100 : 0) << "%" << std::endl;
+    if (USE_LRU) std::cout << "LRU " << (USE_LRU ? LRU_SIZE : 0) << std::endl;
     if (USE_BF) std::cout << "Bloom filter " << (USE_BF ? "ON" : "OFF") << std::endl;
     if (USE_SIMD) std::cout << "SIMD " << (USE_SIMD ? "ON" : "OFF") << std::endl;
 #endif

@@ -7,6 +7,7 @@
 
 #include "bloom_filter.hpp"
 #include "cm_sketch.hpp"
+#include "utils.hpp"
 
 namespace cache {
 
@@ -37,13 +38,12 @@ class TinyLFU<T, SampleSize, NumCounters, false> final {
   }
 
   void Load(std::ifstream& file) {
-    file.read(reinterpret_cast<char*>(&global_counter_), sizeof(global_counter_));
+    utils::BinaryRead(file, &global_counter_, sizeof(global_counter_));
     sketch_.Load(file);
   }
 
   void Store(std::ofstream& file) const {
-    auto glob_counter = global_counter_;
-    file.write(reinterpret_cast<char*>(&glob_counter), sizeof(global_counter_));
+    utils::BinaryWrite(file, &global_counter_, sizeof(global_counter_));
     sketch_.Store(file);
   }
 
@@ -90,14 +90,13 @@ class TinyLFU<T, SampleSize, NumCounters, true> final {
   }
 
   void Load(std::ifstream& file) {
-    file.read(reinterpret_cast<char*>(&global_counter_), sizeof(global_counter_));
+    utils::BinaryRead(file, &global_counter_, sizeof(global_counter_));
     door_keeper_.Load(file);
     sketch_.Load(file);
   }
 
   void Store(std::ofstream& file) const {
-    auto glob_counter = global_counter_;
-    file.write(reinterpret_cast<char*>(&glob_counter), sizeof(global_counter_));
+    utils::BinaryWrite(file, &global_counter_, sizeof(global_counter_));
     door_keeper_.Store(file);
     sketch_.Store(file);
   }

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <array>
-#include <bitset>
 #include <cassert>
 #include <filesystem>
 #include <fstream>
@@ -31,22 +30,24 @@ TODO:
 using Key = uint32_t;
 inline const size_t INVALID_HASH = std::numeric_limits<Key>::max();
 
-inline constexpr size_t LARGE_PAGE_SHIFT = 8;
+inline constexpr size_t LARGE_PAGE_SHIFT = 13;
 inline constexpr size_t SMALL_PAGE_SHIFT = 8;
 inline constexpr size_t SMALL_PAGE_SIZE_SHIFT = 10;
 
-#define USE_LRU_FLAG false
+#define USE_LRU_FLAG true
+inline constexpr double LRU_SIZE = 50'000;
+
+inline constexpr size_t TLFU_SIZE = 1000;
+inline constexpr size_t SAMPLE_SIZE = TLFU_SIZE * 10;
+
+using TTinyLFU = TinyLFU<Key, SAMPLE_SIZE, TLFU_SIZE, false>;
+
 #define USE_TINY_LFU_FLAG true // use Advanced version with TinyLFU
 #define USE_ENCHANCED false // use Simple version with frequency counters 4-bit sized
 #define USE_BF_FLAG false
 #define USE_SIMD_FLAG true
 
-inline constexpr double LRU_MULTIPLIER = 0.01;
-
-inline constexpr size_t TLFU_SIZE = 512;
-inline constexpr bool TLFU_USE_DOOR_KEEPER = false;
-
-inline constexpr size_t SAMPLE_SIZE = TLFU_SIZE * 10;
+#define ENABLE_STATISTICS_FLAG false
 
 #if USE_BF_FLAG
 inline constexpr bool USE_BF = true;
@@ -64,6 +65,12 @@ inline constexpr bool USE_SIMD = false;
 inline constexpr bool USE_LRU = true;
 #else
 inline constexpr bool USE_LRU = false;
+#endif
+
+#if ENABLE_STATISTICS_FLAG
+inline constexpr bool ENABLE_STATISTICS = true;
+#else
+inline constexpr bool ENABLE_STATISTICS = false;
 #endif
 
 inline const size_t LARGE_PAGE_NUMBER = 1 << LARGE_PAGE_SHIFT;
@@ -103,23 +110,23 @@ void WriteToFile(std::ofstream& file, const T& value) {
 }
 
 class SmallPageBasic {
-    public:
+public:
     struct Record {
         void Clear() {
             frequency = 0;
             key = INVALID_HASH;  // TODO: придумать что-то
         }
-    
+
         void Load(std::ifstream& file) {
             ReadFromFile(file, frequency);
             ReadFromFile(file, key);
         }
-    
+
         void Store(std::ofstream& file) const {
             WriteToFile(file, frequency);
             WriteToFile(file, key);
         }
-    
+
         Key frequency{0};
         Key key{INVALID_HASH};
     };
@@ -199,9 +206,24 @@ private:
 
 class SmallPageAdvanced {
 public:
-    SmallPageAdvanced() {
+    explicit SmallPageAdvanced(TTinyLFU& tiny_lfu) : tiny_lfu_(tiny_lfu) {
         records_.fill(INVALID_HASH);
     }
+
+#if ENABLE_STATISTICS_FLAG
+    double GetFillFactor() const {
+        uint32_t cnt = 0;
+        for (const auto& r : records_) {
+            if (r != INVALID_HASH) {
+                ++cnt;
+            }
+        }
+        return cnt / static_cast<double>(records_.size());
+    }
+
+    uint64_t GetNumEvictionsHighFreq() const { return num_evictions_high_freq_; }
+    uint64_t GetNumDroppedKeysLowFreq() const { return drop_keys_due_low_freq_; }
+#endif
 
     void Clear() {
         for (auto& r : records_) {
@@ -302,12 +324,21 @@ public:
             records_.back() = key;
             tiny_lfu_.Add(key);
 
+#if ENABLE_STATISTICS_FLAG
+            num_evictions_high_freq_ += (est_victim != 0);
+#endif
+
 #if USE_BF_FLAG
             bloom_filter_.Add(key);
 #endif
 
             Raise(records_.size() - 1);
         }
+#if ENABLE_STATISTICS_FLAG
+        else {
+            drop_keys_due_low_freq_++;
+        }
+#endif
     }
 
 private:
@@ -329,13 +360,7 @@ private:
 
     alignas(32) std::array<Key, SMALL_PAGE_SIZE> records_{};
 
-    using TTinyLFU = TinyLFU<
-            Key,
-            SAMPLE_SIZE,
-            TLFU_SIZE,
-            TLFU_USE_DOOR_KEEPER
-    >;
-    TTinyLFU tiny_lfu_{};
+    TTinyLFU& tiny_lfu_;
 
 #if USE_BF_FLAG
     BloomFilter<Key, SMALL_PAGE_SIZE * 6> bloom_filter_{
@@ -366,6 +391,11 @@ private:
             return static_cast<size_t>(key); }
     };
 #endif
+
+#if ENABLE_STATISTICS_FLAG
+    uint64_t num_evictions_high_freq_{0};
+    uint64_t drop_keys_due_low_freq_{0};
+#endif
 };
 
 #if USE_TINY_LFU_FLAG
@@ -376,6 +406,9 @@ using SmallPage = SmallPageSimple;
 
 class LargePage {
 public:
+    explicit LargePage(TTinyLFU& tiny_lfu)
+        : small_pages_(utils::MakeArray<SMALL_PAGE_NUMBER>(SmallPage{tiny_lfu})) {}
+
     void Clear() {
         for (auto& page : small_pages_) {
             page.Clear();
@@ -401,15 +434,46 @@ public:
         small_pages_[small_idx].Update(key);
     }
 
+#if ENABLE_STATISTICS
+    std::vector<double> GetSmallPagesFillFactors() {
+        std::vector<double> res;
+        res.reserve(small_pages_.size());
+        for (const auto& page : small_pages_) {
+            res.push_back(page.GetFillFactor());
+        }
+        return res;
+    }
+
+    uint64_t GetNumEvictionsHighFreq() const {
+        uint64_t res = 0;
+        for (const auto& page : small_pages_) {
+            res += page.GetNumEvictionsHighFreq();
+        }
+        return res;
+    }
+
+    uint64_t GetNumDroppedKeysLowFreq() const {
+        uint64_t res = 0;
+        for (const auto& page : small_pages_) {
+            res += page.GetNumDroppedKeysLowFreq();
+        }
+        return res;
+    }
+#endif
+
 private:
     std::array<SmallPage, SMALL_PAGE_NUMBER> small_pages_;
 };
 
 class LargePageProvider {
-    using Storage = std::array<LargePage, LOADED_PAGE_NUMBER>;
+    struct Storage {
+        explicit Storage(TTinyLFU& tiny_lfu) : large_pages_(utils::MakeArray<LOADED_PAGE_NUMBER>(LargePage{tiny_lfu})) {}
+
+        std::array<LargePage, LOADED_PAGE_NUMBER> large_pages_;
+    };
 
 public:
-    LargePageProvider(std::filesystem::path dir_path) : dir_path_(std::move(dir_path)), storage_(std::make_unique<Storage>()) {
+    LargePageProvider(std::filesystem::path dir_path, TTinyLFU& tiny_lfu) : dir_path_(std::move(dir_path)), storage_(std::make_unique<Storage>(tiny_lfu)) {
         static_assert(LOADED_PAGE_NUMBER <= LARGE_PAGE_NUMBER);
         static_assert(LARGE_PAGE_SHIFT + SMALL_PAGE_SHIFT + SMALL_PAGE_SIZE_SHIFT <= 8 * sizeof(Key));
         assert(std::filesystem::exists(dir_path));
@@ -419,11 +483,12 @@ public:
 
         for (auto [_, i] : loaded_pages_) {
             // TODO: сделать ленивую загрузку
-            page_infos[i].ptr = &((*storage_)[j++]);
+            page_infos[i].ptr = &(storage_->large_pages_[j++]);
             LoadPage(i);
         }
     }
 
+    template <bool CalledOnUpdate>
     std::optional<LargePage*> Get(Key key) {
         if (time_ == LARGE_PAGE_PERIOD) {
             DivFrequency();
@@ -434,9 +499,10 @@ public:
 
         size_t i = LargePageIndex(key);
         if (page_infos[i].ptr) {
-            loaded_pages_.erase({page_infos[i].frequency, i});
+            auto node = loaded_pages_.extract({page_infos[i].frequency, i});
             page_infos[i].frequency += 1;
-            loaded_pages_.emplace(page_infos[i].frequency, i);
+            node.value().first = page_infos[i].frequency;
+            loaded_pages_.insert(std::move(node));
             return page_infos[i].ptr;
         } else {
             page_infos[i].frequency += 1;
@@ -452,9 +518,13 @@ public:
                 loaded_pages_.erase(loaded_pages_.begin());
 
                 LoadPage(i);
+
                 loaded_pages_.emplace(page_infos[i].frequency, i);
                 return page_infos[i].ptr;
             }
+#if ENABLE_STATISTICS
+            if (CalledOnUpdate) dropped_keys_++;
+#endif
         }
 
         return std::nullopt;
@@ -467,6 +537,15 @@ public:
                 StorePage(i);
             }
         }
+    }
+
+#if ENABLE_STATISTICS_FLAG
+    size_t large_page_loads_{0};
+    uint64_t dropped_keys_{0};
+#endif
+
+    ~LargePageProvider() {
+        if constexpr (ENABLE_STATISTICS) PrintStatistics();
     }
 
 private:
@@ -511,6 +590,10 @@ private:
 
     void LoadPage(size_t i) {
         assert(page_infos[i].ptr != nullptr);
+#if ENABLE_STATISTICS_FLAG
+        large_page_loads_++;
+#endif
+
         const std::filesystem::path file_path = GetFilePath(i);
         if (std::filesystem::exists(file_path)) {
             std::ifstream file(file_path, std::ios_base::binary);
@@ -539,6 +622,47 @@ private:
         }
     }
 
+    void PrintStatistics() const {
+#if ENABLE_STATISTICS_FLAG
+        std::cout << '\n';
+        std::cout << "Кол-во свопов больших страниц (RAM <-> диск): " << large_page_loads_ << std::endl;
+        std::cout << "Кол-во отброшенных ключей при Update (если соотв. LargePage не загружена в RAM): " << dropped_keys_ << std::endl;
+
+        uint64_t evictions_high_freq = 0;
+        for (size_t i = 0; i < LOADED_PAGE_NUMBER; ++i) {
+            evictions_high_freq += storage_->large_pages_[i].GetNumEvictionsHighFreq();
+        }
+        std::cout << "Кол-во вытесненных ключей из страницы (при переполнении): " << evictions_high_freq << std::endl;
+
+        uint64_t dropped_keys_low_freq = 0;
+        for (size_t i = 0; i < LOADED_PAGE_NUMBER; ++i) {
+            dropped_keys_low_freq += storage_->large_pages_[i].GetNumDroppedKeysLowFreq();
+        }
+        std::cout << "Кол-во отброшенных ключей при Update (из-за низкой частоты): " << dropped_keys_low_freq << std::endl;
+
+        std::vector<double> fill_factors;
+        const size_t SMALL_PAGE_NUM_OVERALL = LOADED_PAGE_NUMBER * SMALL_PAGE_NUMBER;
+        fill_factors.reserve(SMALL_PAGE_NUM_OVERALL);
+        for (size_t i = 0; i < LOADED_PAGE_NUMBER; ++i) {
+            auto factors = storage_->large_pages_[i].GetSmallPagesFillFactors();
+            fill_factors.insert(fill_factors.end(), factors.begin(), factors.end());
+        }
+
+        const double kSample = 0.1;
+        std::vector<size_t> freqs(10, 0);
+        for (auto freq : fill_factors) {
+            const auto sample_idx = std::min(9ul, static_cast<size_t>(freq / kSample));
+            freqs[sample_idx]++;
+        }
+        std::cout << "Распределение страниц по лоад-фактору после бенчмарка:" << std::endl;
+        for (size_t idx = freqs.size(); idx --> 0; ) {
+            if (freqs[idx] == 0) continue;
+            std::cout << std::fixed << std::setprecision(1) << "[" << idx * kSample << "-" << (idx + 1) * kSample << "): ";
+            std::cout << std::fixed  << std::setprecision(2) << 100.0 * freqs[idx] / SMALL_PAGE_NUM_OVERALL << "%" << std::endl;
+        }
+#endif
+    }
+
     std::unique_ptr<Storage> storage_;
     std::array<LargePageInfo, LARGE_PAGE_NUMBER> page_infos;
     std::set<std::pair<size_t, size_t>> loaded_pages_;  // <частота, индекс большой страницы>
@@ -548,9 +672,9 @@ private:
 class Cache {
 public:
     explicit Cache(std::filesystem::path dir_path = "./data")
-        : provider_(dir_path)
+        : tiny_lfu_(), provider_(dir_path, tiny_lfu_)
 #if USE_LRU_FLAG
-        , lru_(static_cast<size_t>(CACHE_SIZE * LRU_MULTIPLIER))
+        , lru_(static_cast<size_t>(LRU_SIZE))
 #endif
         {}
 
@@ -559,7 +683,7 @@ public:
         if (lru_.Get(key)) return true;
 #endif
 
-        auto maybe_large_page = provider_.Get(key);
+        auto maybe_large_page = provider_.Get</*CalledOnUpdate=*/false>(key);
 
         if (!maybe_large_page.has_value()) return false;
 
@@ -568,13 +692,13 @@ public:
 
     void Update(Key key) {
 #if USE_LRU_FLAG
-        auto lru_evicted = lru_.UpdateAndEvict(key);
+        auto lru_evicted = lru_.Update(key);
         if (!lru_evicted) return;
 
         key = *lru_evicted;
 #endif
 
-        auto maybe_large_page = provider_.Get(key);
+        auto maybe_large_page = provider_.Get</*CalledOnUpdate=*/true>(key);
 
         if (!maybe_large_page.has_value()) return;
 
@@ -585,10 +709,11 @@ public:
     void Store() const { provider_.Store(); }
 
 private:
+    TTinyLFU tiny_lfu_{};
     LargePageProvider provider_;
 
 #if USE_LRU_FLAG
-    LRU lru_;
+    LRU<uint32_t> lru_;
 #endif
 };
 
