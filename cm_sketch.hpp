@@ -69,10 +69,12 @@ requires(NumCounters > 0)
 class CountMinSketch {
  public:
   constexpr static uint32_t kNumCounters = utils::NextPowerOf2(NumCounters);
+  static_assert(kNumCounters > 1);
+  constexpr static uint32_t kMask = kNumCounters - 1;
 
   using TRow = details::Row<kNumCounters>;
 
-  explicit CountMinSketch() : mask_(kNumCounters - 1) {
+  CountMinSketch() {
     std::random_device rd;
     std::mt19937 rng(rd());
     for (size_t i = 0; i < details::CM_DEPTH; i++) {
@@ -82,14 +84,14 @@ class CountMinSketch {
 
   void Add(uint32_t key) {
     for (size_t i = 0; i < details::CM_DEPTH; i++) {
-      rows_[i].Add((key ^ seeds_[i]) & mask_); // `& mask` is equivalent to `% numCounters`
+      rows_[i].Add((key ^ seeds_[i]) & kMask); // `& mask` is equivalent to `% numCounters`
     }
   }
 
   uint8_t Estimate(uint32_t key) const {
     auto minVal = std::numeric_limits<uint8_t>::max();
     for (size_t i = 0; i < details::CM_DEPTH; i++) {
-      uint8_t val = rows_[i].Get((key ^ seeds_[i]) & mask_);
+      uint8_t val = rows_[i].Get((key ^ seeds_[i]) & kMask);
       minVal = std::min(minVal, val);
     }
     return minVal;
@@ -103,14 +105,12 @@ class CountMinSketch {
     for (auto& row : rows_) row.Clear();
   }
 
-  uint64_t GetMask() const { return mask_; }
   const TRow& GetRow(size_t i) { return rows_[i]; }
 
   void Load(std::ifstream& file) {
     for (auto& row : rows_) {
       row.Load(file);
     }
-    utils::BinaryRead(file, &mask_, sizeof(mask_));
     utils::BinaryRead(file, seeds_.data(), seeds_.size() * sizeof(seeds_[0]));
   }
 
@@ -118,20 +118,17 @@ class CountMinSketch {
     for (auto& row : rows_) {
       row.Store(file);
     }
-    utils::BinaryWrite(file, &mask_, sizeof(mask_));
     utils::BinaryWrite(file, seeds_.data(), seeds_.size() * sizeof(seeds_[0]));
   }
 
   bool operator==(const CountMinSketch& other) const {
-    return rows_ == other.rows_
+    return rows_ == other.rows_;
       // && seeds_ == other.seeds_ // seeds may differ
-      && mask_ == other.mask_;
   }
 
  private:
   std::array<TRow, details::CM_DEPTH> rows_{}; // 2 * kNumCounters bytes
   std::array<uint32_t, details::CM_DEPTH> seeds_{}; // 16 bytes
-  uint32_t mask_{}; // 4 bytes
 };
 
 }  // namespace cache
