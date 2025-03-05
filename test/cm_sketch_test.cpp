@@ -12,8 +12,8 @@ TEST(CountMinSketch, SizeOf) {
 }
 
 TEST(CountMinSketch, Construction) {
-  static_assert(CountMinSketch<5>::kMask == 7);
-  static_assert(CountMinSketch<32>::kMask == 31);
+  static_assert(CountMinSketch<5>::kNumCounters == 8);
+  static_assert(CountMinSketch<32>::kNumCounters == 32);
 }
 
 TEST(CountMinSketch, Add) {

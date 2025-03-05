@@ -4,3 +4,6 @@
 [submodule "third_party/boost_intrusive"]
 	path = third_party/boost_intrusive
 	url = https://github.com/boostorg/intrusive.git
+[submodule "third_party/benchmark"]
+	path = third_party/benchmark
+	url = https://github.com/google/benchmark.git

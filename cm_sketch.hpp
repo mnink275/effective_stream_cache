@@ -6,10 +6,10 @@
 
 */
 
+#include <bit>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <stdexcept>
 #include <fstream>
 #include <random>
 #include <array>
@@ -25,29 +25,30 @@ constexpr size_t CM_DEPTH = 4;
 template <uint32_t NumCounters>
 class Row {
  public:
-  constexpr static int RESET_MASK = 0x77; // 0111 0111
-  constexpr static int MOD_16_MASK = 0x0F; // 0000 1111
+  constexpr static uint8_t MAX_COUNT = 15;
 
-  uint8_t Get(uint32_t value) const {
-    return (data_[value / 2] >> ((value & 1) * 4)) & MOD_16_MASK;
+  uint8_t Get(uint32_t value) const noexcept {
+    return (data_[value / 2] >> ((value % 2) * 4)) % (MAX_COUNT + 1);
   }
 
-  void Add(uint32_t value) {
-    uint32_t idx = value / 2; // divide by 2 because data.size() == NumCounters / 2
-    uint8_t shift = (value & 1) * 4; // possible values: 0, 4
-    uint8_t v = (data_[idx] >> shift) & MOD_16_MASK;
-    if (v < 15) data_[idx] += (1 << shift); // add 1 to the counter
+  void Add(uint32_t value) noexcept {
+    const uint32_t idx = value / 2; // divide by 2 because data.size() == NumCounters / 2
+    const uint8_t shift = (value % 2) * 4; // possible values: 0, 4
+    const uint8_t count = (data_[idx] >> shift) % (MAX_COUNT + 1);
+    if (count < MAX_COUNT) data_[idx] += (1 << shift); // add 1 to the counter
   }
 
-  void Reset() {
+  void Reset() noexcept {
+    constexpr static size_t RESET_MASK = 0x77; // 0111 0111
     for (auto& byte : data_) {
-      byte = (byte >> 1) & RESET_MASK; // reset each counter, e.g. 0011 1011 (shift)-> 0001 1101 (mask)-> 0001 0101
+      // reset each counter, e.g. 0011 1011 (shift)-> 0001 1101 (mask)-> 0001 0101
+      byte = (byte >> 1) & RESET_MASK;
     }
   }
 
-  void Clear() { data_.fill(0); }
+  void Clear() noexcept { data_.fill(0); }
 
-  bool operator==(const Row& other) const { return data_ == other.data_; }
+  bool operator==(const Row& other) const noexcept { return data_ == other.data_; }
 
   void Load(std::ifstream& file) {
     utils::BinaryRead(file, data_.data(), data_.size());
@@ -68,9 +69,8 @@ template <uint32_t NumCounters>
 requires(NumCounters > 0)
 class CountMinSketch {
  public:
-  constexpr static uint32_t kNumCounters = utils::NextPowerOf2(NumCounters);
+  constexpr static uint32_t kNumCounters = std::bit_ceil(NumCounters);
   static_assert(kNumCounters > 1);
-  constexpr static uint32_t kMask = kNumCounters - 1;
 
   using TRow = details::Row<kNumCounters>;
 
@@ -82,30 +82,30 @@ class CountMinSketch {
     }
   }
 
-  void Add(uint32_t key) {
+  void Add(uint32_t key) noexcept {
     for (size_t i = 0; i < details::CM_DEPTH; i++) {
-      rows_[i].Add((key ^ seeds_[i]) & kMask); // `& mask` is equivalent to `% numCounters`
+      rows_[i].Add((key ^ seeds_[i]) % kNumCounters);
     }
   }
 
-  uint8_t Estimate(uint32_t key) const {
-    auto minVal = std::numeric_limits<uint8_t>::max();
+  uint8_t Estimate(uint32_t key) const noexcept {
+    auto min_count = std::numeric_limits<uint8_t>::max();
     for (size_t i = 0; i < details::CM_DEPTH; i++) {
-      uint8_t val = rows_[i].Get((key ^ seeds_[i]) & kMask);
-      minVal = std::min(minVal, val);
+      auto count = rows_[i].Get((key ^ seeds_[i]) % kNumCounters);
+      min_count = std::min(min_count, count);
     }
-    return minVal;
+    return min_count;
   }
 
-  void Reset() {
+  void Reset() noexcept {
     for (auto& row : rows_) row.Reset();
   }
 
-  void Clear() {
+  void Clear() noexcept {
     for (auto& row : rows_) row.Clear();
   }
 
-  const TRow& GetRow(size_t i) { return rows_[i]; }
+  const TRow& GetRow(size_t i) noexcept { return rows_[i]; }
 
   void Load(std::ifstream& file) {
     for (auto& row : rows_) {
@@ -121,7 +121,7 @@ class CountMinSketch {
     utils::BinaryWrite(file, seeds_.data(), seeds_.size() * sizeof(seeds_[0]));
   }
 
-  bool operator==(const CountMinSketch& other) const {
+  bool operator==(const CountMinSketch& other) const noexcept {
     return rows_ == other.rows_;
       // && seeds_ == other.seeds_ // seeds may differ
   }
