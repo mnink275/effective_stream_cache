@@ -64,20 +64,20 @@ static void TLFUDoorKeeper_Estimate(benchmark::State& state) {
 BENCHMARK(TLFUDoorKeeper_Estimate);
 
 /*
-2025-03-05T19:13:38+03:00
+2025-03-05T21:36:45+03:00
 Running ./build_release/benchmark/cache_benchmark
-Run on (16 X 4485.69 MHz CPU s)
+Run on (16 X 5065.65 MHz CPU s)
 CPU Caches:
   L1 Data 32 KiB (x8)
   L1 Instruction 32 KiB (x8)
   L2 Unified 1024 KiB (x8)
   L3 Unified 16384 KiB (x1)
-Load Average: 2.19, 1.92, 1.65
+Load Average: 1.20, 1.73, 1.88
 ------------------------------------------------------------------
 Benchmark                        Time             CPU   Iterations
 ------------------------------------------------------------------
-TLFU_Add                      7.19 ns         7.19 ns     88385271
-TLFU_Estimate                 1.83 ns         1.83 ns    379588387
-TLFUDoorKeeper_Add            6.01 ns         6.01 ns    105109425
-TLFUDoorKeeper_Estimate       1.80 ns         1.80 ns    377758077
+TLFU_Add                      7.06 ns         7.06 ns     86783168
+TLFU_Estimate                 1.81 ns         1.81 ns    377673764
+TLFUDoorKeeper_Add            5.88 ns         5.88 ns    103763591
+TLFUDoorKeeper_Estimate       1.79 ns         1.79 ns    382370366
 */

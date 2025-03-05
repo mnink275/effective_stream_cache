@@ -17,7 +17,7 @@ public:
         num_hash_func_(std::max(2U, static_cast<uint32_t>(0.7 * num_bits / capacity))),
         data_((num_bits + 63) / 64, 0) {}
 
-    bool Add(uint64_t key) {
+    bool Add(uint64_t key) noexcept {
         const auto h1 = static_cast<uint32_t>(key);
         const auto h2 = static_cast<uint32_t>(key >> 32);
         bool was_added = true;
@@ -33,7 +33,7 @@ public:
         return was_added;
     }
 
-    bool Test(uint64_t key) {
+    bool Test(uint64_t key) const noexcept {
         const auto h1 = static_cast<uint32_t>(key);
         const auto h2 = static_cast<uint32_t>(key >> 32);
         bool was_added = true;
@@ -47,7 +47,7 @@ public:
         return was_added;
     }
 
-    void Clear() {
+    void Clear() noexcept {
         std::fill(data_.begin(), data_.end(), 0);
     }
 
