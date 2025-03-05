@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "../bloom_filter.hpp"
+#include <bloom_filter.hpp>
 
 #include <random>
 #include <fstream>

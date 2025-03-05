@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "../lru.hpp"
+#include <lru.hpp>
 
 namespace cache::test {
 

@@ -1,6 +1,6 @@
 #include <benchmark/benchmark.h>
 
-#include "../tiny_lfu_cms.hpp"
+#include <tiny_lfu_cms.hpp>
 
 #include <random>
 #include <cstdint>

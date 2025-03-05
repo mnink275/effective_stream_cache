@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "../tiny_lfu_cms.hpp"
+#include <tiny_lfu_cms.hpp>
 
 namespace cache::test {
 

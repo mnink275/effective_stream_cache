@@ -1,6 +1,6 @@
 #include <benchmark/benchmark.h>
 
-#include "../cm_sketch.hpp"
+#include <cm_sketch.hpp>
 
 #include <random>
 
