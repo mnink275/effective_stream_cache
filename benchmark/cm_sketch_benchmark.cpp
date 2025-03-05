@@ -4,8 +4,10 @@
 
 #include <random>
 
+static constexpr size_t kNumCounters = 1024;
+
 static void CMS_Add(benchmark::State& state) {
-  cache::CountMinSketch<1024> sketch;
+  cache::CountMinSketch<kNumCounters> sketch;
   std::mt19937 rng;
   for (auto _ : state) {
     sketch.Add(rng());
@@ -14,9 +16,9 @@ static void CMS_Add(benchmark::State& state) {
 BENCHMARK(CMS_Add);
 
 static void CMS_Estimate(benchmark::State& state) {
-  cache::CountMinSketch<1024> sketch;
+  cache::CountMinSketch<kNumCounters> sketch;
   std::mt19937 rng;
-  for (size_t i = 0; i < 1024; i++) {
+  for (size_t i = 0; i < kNumCounters; i++) {
     sketch.Add(rng());
   }
 
@@ -25,8 +27,6 @@ static void CMS_Estimate(benchmark::State& state) {
   }
 }
 BENCHMARK(CMS_Estimate);
-
-BENCHMARK_MAIN();
 
 /*
 2025-03-05T18:49:54+03:00
