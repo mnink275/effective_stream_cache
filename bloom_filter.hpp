@@ -1,5 +1,6 @@
 #pragma once
 
+#include <bit>
 #include <cmath>
 #include <fstream>
 #include <vector>
@@ -12,7 +13,7 @@ public:
     BloomFilter(int32_t capacity, double falsePositiveRate)
         : num_bits(std::max(
             1024U,
-            utils::NextPowerOf2(static_cast<uint32_t>(capacity * -std::log(falsePositiveRate) / (std::log(2.0) * std::log(2.0)))))
+            std::bit_ceil(static_cast<uint32_t>(capacity * -std::log(falsePositiveRate) / (std::log(2.0) * std::log(2.0)))))
         ),
         num_hash_func_(std::max(2U, static_cast<uint32_t>(0.7 * num_bits / capacity))),
         data_((num_bits + 63) / 64, 0) {}
