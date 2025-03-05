@@ -75,16 +75,18 @@ inline constexpr bool ENABLE_STATISTICS = false;
 
 inline const size_t LARGE_PAGE_NUMBER = 1 << LARGE_PAGE_SHIFT;
 
-inline size_t LargePageIndex(Key key) { return key >> (8ull * sizeof(Key) - LARGE_PAGE_SHIFT); }
+inline size_t LargePageIndex(Key key) noexcept {
+    return key >> (8ull * sizeof(Key) - LARGE_PAGE_SHIFT);
+}
 
 inline const size_t SMALL_PAGE_NUMBER = (1 << SMALL_PAGE_SHIFT) + 1;
 
-// inline size_t SmallPageIndex(Key key) {
+// inline size_t SmallPageIndex(Key key) noexcept {
 //     key &= (1ull << (8ull * sizeof(Key) - LARGE_PAGE_SHIFT)) - 1ull;
 //     return key >> (8ull * sizeof(Key) - LARGE_PAGE_SHIFT - SMALL_PAGE_SHIFT);
 // }
 
-inline size_t SmallPageIndex(Key key) {
+inline size_t SmallPageIndex(Key key) noexcept {
     key &= (1ull << (8ull * sizeof(Key) - LARGE_PAGE_SHIFT)) - 1ull;
     return key % SMALL_PAGE_NUMBER;
 }
@@ -112,7 +114,7 @@ void WriteToFile(std::ofstream& file, const T& value) {
 class SmallPageBasic {
 public:
     struct Record {
-        void Clear() {
+        void Clear() noexcept {
             frequency = 0;
             key = INVALID_HASH;  // TODO: придумать что-то
         }
@@ -131,7 +133,7 @@ public:
         Key key{INVALID_HASH};
     };
 
-    void Clear() {
+    void Clear() noexcept {
         time_ = 0;
         for (auto& r : records_) {
             r.Clear();
@@ -171,7 +173,7 @@ public:
     }
 
     // key не содержится в records_
-    void Update(Key key) {
+    void Update(Key key) noexcept {
         if (time_ == SAMPLE_SIZE) {
             DivFrequency();
             time_ = 0;
@@ -187,14 +189,14 @@ public:
     }
 
 private:
-    void DivFrequency() {  // делит все частоты на 2, TODO: эту операцию можно сделать отложенной
+    void DivFrequency() noexcept {  // делит все частоты на 2, TODO: эту операцию можно сделать отложенной
         for (auto& r : records_) {
             r.frequency >>= 1;
         }
     }
 
-    void Raise(size_t i) {  // поднимает запись i в соответствии с частотой
-        while (i && records_[i - 1].frequency < records_[i].frequency) {
+    void Raise(size_t i) noexcept {  // поднимает запись i в соответствии с частотой
+        while (i > 0 && records_[i - 1].frequency < records_[i].frequency) {
             std::swap(records_[i - 1], records_[i]);
             --i;
         }
@@ -206,7 +208,7 @@ private:
 
 class SmallPageAdvanced {
 public:
-    explicit SmallPageAdvanced(TTinyLFU& tiny_lfu) : tiny_lfu_(tiny_lfu) {
+    explicit SmallPageAdvanced(TTinyLFU& tiny_lfu) noexcept : tiny_lfu_(tiny_lfu) {
         records_.fill(INVALID_HASH);
     }
 
@@ -225,7 +227,7 @@ public:
     uint64_t GetNumDroppedKeysLowFreq() const { return drop_keys_due_low_freq_; }
 #endif
 
-    void Clear() {
+    void Clear() noexcept {
         for (auto& r : records_) {
             r = INVALID_HASH;
         }
@@ -257,7 +259,7 @@ public:
         }
     }
 
-    bool Get(Key key) {
+    bool Get(Key key) noexcept {
 #if USE_BF_FLAG
         if (!bloom_filter_.Test(key)) {
             return false;
@@ -300,7 +302,7 @@ public:
         return false;
     }
 
-    void Update(Key key) {
+    void Update(Key key) noexcept {
         // key не содержится в records_
         // assert(FindIdxOf(key) == INVALID_KEY);
 
@@ -342,21 +344,13 @@ public:
     }
 
 private:
-    void Raise(size_t i) {  // поднимает запись i в соответствии с частотой
+    void Raise(size_t i) noexcept {  // поднимает запись i в соответствии с частотой
         while (i && tiny_lfu_.Estimate(records_[i - 1]) < tiny_lfu_.Estimate(records_[i])) {
             std::swap(records_[i - 1], records_[i]);
             --i;
         }
     }
 
-    size_t FindIdxOf(Key key) {
-        for (size_t i = 0; i < records_.size(); ++i) {
-            if (records_[i] == key) {
-                return i;
-            }
-        }
-        return INVALID_HASH;
-    }
 
     alignas(32) std::array<Key, SMALL_PAGE_SIZE> records_{};
 
@@ -409,7 +403,7 @@ public:
     explicit LargePage(TTinyLFU& tiny_lfu)
         : small_pages_(utils::MakeArray<SMALL_PAGE_NUMBER>(SmallPage{tiny_lfu})) {}
 
-    void Clear() {
+    void Clear() noexcept {
         for (auto& page : small_pages_) {
             page.Clear();
         }
@@ -427,9 +421,9 @@ public:
         }
     }
 
-    bool Get(Key key) { return small_pages_[SmallPageIndex(key)].Get(key); }
+    bool Get(Key key) noexcept { return small_pages_[SmallPageIndex(key)].Get(key); }
 
-    void Update(Key key) {
+    void Update(Key key) noexcept {
         auto small_idx = SmallPageIndex(key);
         small_pages_[small_idx].Update(key);
     }
@@ -489,7 +483,7 @@ public:
     }
 
     template <bool CalledOnUpdate>
-    std::optional<LargePage*> Get(Key key) {
+    LargePage* Get(Key key) {
         if (time_ == LARGE_PAGE_PERIOD) {
             DivFrequency();
             time_ = 0;
@@ -504,30 +498,26 @@ public:
             node.value().first = page_infos[i].frequency;
             loaded_pages_.insert(std::move(node));
             return page_infos[i].ptr;
-        } else {
-            page_infos[i].frequency += 1;
-
-            if (loaded_pages_.begin()->first + FREQUENCY_THRESHOLD < page_infos[i].frequency) {
-                size_t worse = loaded_pages_.begin()->second;
-
-                StorePage(worse);
-
-                page_infos[i].ptr = page_infos[worse].ptr;
-                page_infos[worse].ptr = nullptr;
-
-                loaded_pages_.erase(loaded_pages_.begin());
-
-                LoadPage(i);
-
-                loaded_pages_.emplace(page_infos[i].frequency, i);
-                return page_infos[i].ptr;
-            }
-#if ENABLE_STATISTICS
-            if (CalledOnUpdate) dropped_keys_++;
-#endif
         }
+        page_infos[i].frequency += 1;
 
-        return std::nullopt;
+        if (loaded_pages_.begin()->first + FREQUENCY_THRESHOLD < page_infos[i].frequency) {
+            const size_t worse = loaded_pages_.begin()->second;
+            StorePage(worse);
+
+            page_infos[i].ptr = page_infos[worse].ptr;
+            page_infos[worse].ptr = nullptr;
+            loaded_pages_.erase(loaded_pages_.begin());
+            LoadPage(i);
+            loaded_pages_.emplace(page_infos[i].frequency, i);
+
+            return page_infos[i].ptr;
+        }
+#if ENABLE_STATISTICS
+        if (CalledOnUpdate) dropped_keys_++;
+#endif
+
+        return nullptr;
     }
 
     void Store() const {
@@ -683,11 +673,11 @@ public:
         if (lru_.Get(key)) return true;
 #endif
 
-        auto maybe_large_page = provider_.Get</*CalledOnUpdate=*/false>(key);
+        auto* maybe_large_page = provider_.Get</*CalledOnUpdate=*/false>(key);
 
-        if (!maybe_large_page.has_value()) return false;
+        if (maybe_large_page == nullptr) return false;
 
-        return maybe_large_page.value()->Get(key);
+        return maybe_large_page->Get(key);
     }
 
     void Update(Key key) {
@@ -698,12 +688,11 @@ public:
         key = *lru_evicted;
 #endif
 
-        auto maybe_large_page = provider_.Get</*CalledOnUpdate=*/true>(key);
+        auto* maybe_large_page = provider_.Get</*CalledOnUpdate=*/true>(key);
 
-        if (!maybe_large_page.has_value()) return;
+        if (maybe_large_page == nullptr) return;
 
-
-        maybe_large_page.value()->Update(key);
+        maybe_large_page->Update(key);
     }
 
     void Store() const { provider_.Store(); }

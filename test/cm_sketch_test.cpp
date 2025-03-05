@@ -8,15 +8,12 @@ namespace cache::test {
 
 TEST(CountMinSketch, SizeOf) {
   constexpr size_t NUM_COUNTERS = 16;
-  static_assert(sizeof(CountMinSketch<NUM_COUNTERS>) == 2 * NUM_COUNTERS + 16 + 4);
+  static_assert(sizeof(CountMinSketch<NUM_COUNTERS>) == 2 * NUM_COUNTERS + 16);
 }
 
 TEST(CountMinSketch, Construction) {
-  CountMinSketch<5> sketch1;
-  EXPECT_EQ(sketch1.GetMask(), 7);
-
-  CountMinSketch<32> sketch2;
-  EXPECT_EQ(sketch2.GetMask(), 31);
+  static_assert(CountMinSketch<5>::kNumCounters == 8);
+  static_assert(CountMinSketch<32>::kNumCounters == 32);
 }
 
 TEST(CountMinSketch, Add) {

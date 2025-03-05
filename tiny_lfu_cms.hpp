@@ -20,7 +20,7 @@ class TinyLFU<T, SampleSize, NumCounters, false> final {
   using TGlobalCounter = uint32_t;
   static_assert(SampleSize <= std::numeric_limits<TGlobalCounter>::max());
 
-  void Add(T key) {
+  void Add(T key) noexcept {
     if (key == std::numeric_limits<T>::max()) return;
 
     sketch_.Add(key);
@@ -30,7 +30,7 @@ class TinyLFU<T, SampleSize, NumCounters, false> final {
     }
   }
 
-  size_t Estimate(T key) {
+  size_t Estimate(T key) const noexcept {
     if (key == std::numeric_limits<T>::max()) return 0;
 
     auto frequency = sketch_.Estimate(key);
@@ -47,12 +47,12 @@ class TinyLFU<T, SampleSize, NumCounters, false> final {
     sketch_.Store(file);
   }
 
-  void Reset() {
+  void Reset() noexcept {
     sketch_.Reset();
     global_counter_ = 0;
   }
 
-  void Clear() {
+  void Clear() noexcept {
     sketch_.Clear();
     global_counter_ = 0;
   }
@@ -68,7 +68,7 @@ class TinyLFU<T, SampleSize, NumCounters, true> final {
   using TGlobalCounter = uint32_t;
   static_assert(SampleSize <= std::numeric_limits<TGlobalCounter>::max());
 
-  void Add(T key) {
+  void Add(T key) noexcept {
     if (key == std::numeric_limits<T>::max()) return;
 
     auto was_added = door_keeper_.Add(key);
@@ -81,7 +81,7 @@ class TinyLFU<T, SampleSize, NumCounters, true> final {
     }
   }
 
-  size_t Estimate(T key) {
+  size_t Estimate(T key) const noexcept {
     if (key == std::numeric_limits<T>::max()) return 0;
 
     auto frequency = sketch_.Estimate(key);
@@ -101,19 +101,19 @@ class TinyLFU<T, SampleSize, NumCounters, true> final {
     sketch_.Store(file);
   }
 
-  void Reset() {
+  void Reset() noexcept {
     sketch_.Reset();
     door_keeper_.Clear();
     global_counter_ = 0;
   }
 
-  void Clear() {
+  void Clear() noexcept {
     sketch_.Clear();
     door_keeper_.Clear();
     global_counter_ = 0;
   }
 
-  bool operator==(const TinyLFU& other) const {
+  bool operator==(const TinyLFU& other) const noexcept {
     return sketch_ == other.sketch_
       && door_keeper_ == other.door_keeper_
       && global_counter_ == other.global_counter_;

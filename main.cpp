@@ -2,7 +2,10 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
+
 #include "cache.hpp"
+
+using namespace std::chrono_literals;
 
 namespace utils {
 
@@ -53,23 +56,27 @@ std::vector<uint32_t> LoadFromFile(const std::string& filename) {
 struct BenchmarkResult {
     static constexpr auto CPU_WORKING_CLOCK_GHz = 4.0;
 
-    size_t hitCount;
-    size_t totalCount;
-    std::chrono::nanoseconds benchmarkTime;
-    std::chrono::nanoseconds updatesTime;
-    int64_t RSS;
+    size_t hitCount{0};
+    size_t totalCount{0};
+    std::chrono::nanoseconds benchmarkTime{0ns};
+    std::chrono::nanoseconds updatesTime{0ns};
+    int64_t RSS{0};
 
     void Print() const {
         std::cout << "RSS: " << RSS / 1024.0 << " MB" << std::endl;
         std::cout << "Hit ratio: " << (100 * static_cast<double>(hitCount) / totalCount)  << " %" << std::endl;
 
-        const auto opAverageTime = std::chrono::duration_cast<std::chrono::nanoseconds>(benchmarkTime).count() / totalCount;
-        std::cout << "Operation average time: "
-                  << opAverageTime << std::endl;
-
         const auto getAverageTime = std::chrono::duration_cast<std::chrono::nanoseconds>(benchmarkTime - updatesTime).count() / totalCount;
         std::cout << "Get average time: "
                   << getAverageTime << std::endl;
+
+        const auto updateAverageTime = std::chrono::duration_cast<std::chrono::nanoseconds>(updatesTime).count() / (totalCount - hitCount);
+        std::cout << "Update average time: "
+                  << updateAverageTime << std::endl;
+
+        const auto opAverageTime = std::chrono::duration_cast<std::chrono::nanoseconds>(benchmarkTime).count() / totalCount;
+        std::cout << "Op average time: "
+                  << opAverageTime << std::endl;
     }
 
     BenchmarkResult& operator+=(const BenchmarkResult& other) {
@@ -84,7 +91,6 @@ struct BenchmarkResult {
 
 template <class TCache, typename... CacheArgs>
 BenchmarkResult RunBenchmark(const auto& keys, TCache& cache) {
-    using namespace std::chrono_literals;
     const auto beforeBenchmarkRSS =  utils::PrintRSS();
 
     size_t hitCount = 0;
@@ -136,9 +142,18 @@ int main() {
     std::vector<uint32_t> benchmark_keys;
     benchmark_keys.reserve(kBatchSize);
 
-    BenchmarkResult total_result{0, 0, 0ns, 0ns, 0};
+    BenchmarkResult total_result;
 
-    std::ifstream input("dataset/Financial1.txt");
+    // std::string filename = "dataset/f_960M_43M.txt";
+    // std::string filename = "dataset/ws_458M_14M.txt";
+    // std::string filename = "dataset/n_10M_578K.txt";
+    // std::string filename = "dataset/f_640M_28M.txt";
+    // std::string filename = "dataset/WebSearch2.txt";
+    std::string filename = "dataset/Financial1.txt";
+    // std::string filename = "/home/ink/Documents/Cache/Data/P14.txt";
+    // std::string filename = "/home/ink/Documents/Cache/Data/ds1.txt";
+
+    std::ifstream input(filename);
     if (!input.is_open()) {
         throw std::runtime_error("Can't open file");
     }
@@ -149,7 +164,8 @@ int main() {
     using TCache = Cache;
     TCache cache;
 #else
-    using TCache = LRU;
+    // using TCache = LRU;
+    using TCache = LRU<uint32_t>;
     // const size_t CACHE_SIZE = 131584;
     // const size_t CACHE_SIZE = 524288;
     const size_t CACHE_SIZE = 5'000'000;
