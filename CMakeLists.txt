@@ -16,3 +16,6 @@ add_executable(
 
 include(CTest)
 add_subdirectory(test)
+
+add_subdirectory(third_party/benchmark)
+add_subdirectory(benchmark)
