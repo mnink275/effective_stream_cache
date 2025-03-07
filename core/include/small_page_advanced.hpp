@@ -45,8 +45,6 @@ public:
     }
 
     void Load(std::ifstream& file) {
-        tiny_lfu_.Load(file);
-
 #if USE_BF_FLAG
         bloom_filter_.Load(file);
 #endif
@@ -57,8 +55,6 @@ public:
     }
 
     void Store(std::ofstream& file) const {
-        tiny_lfu_.Store(file);
-
 #if USE_BF_FLAG
         bloom_filter_.Store(file);
 #endif
