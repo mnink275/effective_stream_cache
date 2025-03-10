@@ -13,9 +13,14 @@ add_executable(
         lru_test.cpp
 )
 
-target_link_libraries(
-    ${PROJECT_NAME}_test GTest::gtest_main
+target_include_directories(
+    ${PROJECT_NAME}_test PRIVATE ${PROJECT_SOURCE_DIR}/core/include
 )
+
+target_link_libraries(
+    ${PROJECT_NAME}_test ${PROJECT_NAME}_objs GTest::gtest_main
+)
+
 
 include(GoogleTest)
 gtest_discover_tests(${PROJECT_NAME}_test)
