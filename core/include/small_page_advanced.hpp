@@ -44,23 +44,23 @@ public:
         }
     }
 
-    void Load(std::ifstream& file) {
+    void Load(const char* buffer) noexcept {
 #if USE_BF_FLAG
         bloom_filter_.Load(file);
 #endif
 
-        for (auto& r : records_) {
-            utils::BinaryRead(file, &r, sizeof(r));
+        for (size_t i = 0; i < records_.size(); ++i) {
+            utils::BinaryRead(buffer + i * sizeof(Key), &records_[i], sizeof(Key));
         }
     }
 
-    void Store(std::ofstream& file) const {
+    void Store(char* buffer) const noexcept {
 #if USE_BF_FLAG
         bloom_filter_.Store(file);
 #endif
 
-        for (const auto& r : records_) {
-            utils::BinaryWrite(file, &r, sizeof(r));
+        for (size_t i = 0; i < records_.size(); ++i) {
+            utils::BinaryWrite(buffer + i * sizeof(Key), &records_[i], sizeof(Key));
         }
     }
 
@@ -148,6 +148,10 @@ public:
 #endif
     }
 
+    bool operator==(const SmallPageAdvanced& other) const noexcept {
+        return records_ == other.records_;
+    }
+
 private:
     void Raise(size_t i) noexcept {  // поднимает запись i в соответствии с частотой
         while (i && tiny_lfu_.Estimate(records_[i - 1]) < tiny_lfu_.Estimate(records_[i])) {
@@ -155,7 +159,6 @@ private:
             --i;
         }
     }
-
 
     alignas(32) std::array<Key, SMALL_PAGE_SIZE> records_{};
 

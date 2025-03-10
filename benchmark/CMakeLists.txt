@@ -3,6 +3,7 @@ add_executable(
         main.cpp
         cm_sketch_benchmark.cpp
         tiny_lfu_cms_benchmark.cpp
+        large_page_benchmark.cpp
 )
 
 target_include_directories(
