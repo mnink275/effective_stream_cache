@@ -11,6 +11,7 @@ add_executable(
         bloom_filter_simple_test.cpp
         cm_sketch_test.cpp
         lru_test.cpp
+        large_page_test.cpp
 )
 
 target_include_directories(

@@ -7,11 +7,12 @@
 
 namespace cache::test {
 
-TEST(BloomFilter, AddAndTest) {
-  const size_t capacity = 1000;
-  BloomFilter bf{capacity, 0.01};
+static constexpr size_t kCapacity = 1000;
 
-  for (size_t i = 0; i < capacity; ++i) {
+TEST(BloomFilter, AddAndTest) {
+  BloomFilter<kCapacity> bf;
+
+  for (size_t i = 0; i < kCapacity; ++i) {
     EXPECT_FALSE(bf.Test(i));
   }
 
@@ -27,7 +28,7 @@ TEST(BloomFilter, AddAndTest) {
 }
 
 TEST(BloomFilter, FillAndClear) {
-  BloomFilter bf{1000, 0.01};
+  BloomFilter<kCapacity> bf;
 
   const size_t num_keys = 42;
 
@@ -44,8 +45,8 @@ TEST(BloomFilter, FillAndClear) {
 }
 
 TEST(BloomFilter, SerializeDeserialize) {
-  BloomFilter bf{1000, 0.01};
-  BloomFilter bf_copy{1000, 0.01};
+  BloomFilter<kCapacity> bf;
+  BloomFilter<kCapacity> bf_copy;
 
   EXPECT_EQ(bf, bf_copy);
 

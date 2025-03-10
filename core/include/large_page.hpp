@@ -26,15 +26,21 @@ public:
     }
 
     void Load(std::ifstream& file) {
-        for (auto& page : small_pages_) {
-            page.Load(file);
+        static std::array<char, kDataSizeInBytes> buff{};
+        file.read(buff.data(), kDataSizeInBytes);
+
+        for (size_t i = 0; i < SMALL_PAGE_NUMBER; ++i) {
+            small_pages_[i].Load(buff.data() + i * SMALL_PAGE_SIZE * sizeof(Key));
         }
     }
 
     void Store(std::ofstream& file) const {
-        for (const auto& page : small_pages_) {
-            page.Store(file);
+        static std::array<char, kDataSizeInBytes> buff{};
+        for (size_t i = 0; i < SMALL_PAGE_NUMBER; ++i) {
+            small_pages_[i].Store(buff.data() + i * SMALL_PAGE_SIZE * sizeof(Key));
         }
+
+        file.write(buff.data(), kDataSizeInBytes);
     }
 
     bool Get(Key key) noexcept { return small_pages_[SmallPageIndex(key)].Get(key); }
@@ -71,7 +77,16 @@ public:
     }
 #endif
 
+    bool operator==(const LargePage& other) const noexcept {
+        for (size_t i = 0; i < SMALL_PAGE_NUMBER; ++i) {
+            if (small_pages_[i] != other.small_pages_[i]) return false;
+        }
+        return true;
+    }
+
 private:
+    static constexpr std::size_t kDataSizeInBytes = SMALL_PAGE_NUMBER * SMALL_PAGE_SIZE * sizeof(Key);
+
     std::array<SmallPage, SMALL_PAGE_NUMBER> small_pages_;
 };
 

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <array>
+#include <cstring>
 #include <fstream>
 
 namespace utils {
@@ -20,8 +21,16 @@ inline void BinaryWrite(std::ofstream& out, const void* data, size_t size) {
     out.write(reinterpret_cast<const char*>(data), size);
 }
 
+inline void BinaryWrite(char* buffer, const void* data, size_t size) noexcept {
+    std::memcpy(buffer, data, size);
+}
+
 inline void BinaryRead(std::ifstream& in, void* data, size_t size) {
     in.read(reinterpret_cast<char*>(data), size);
+}
+
+inline void BinaryRead(const char* buffer, void* data, size_t size) noexcept {
+    std::memcpy(data, buffer, size);
 }
 
 }  // namespace utils
