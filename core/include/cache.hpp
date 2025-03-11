@@ -12,7 +12,7 @@ namespace cache {
 class Cache {
 public:
     explicit Cache(std::filesystem::path dir_path = "./data")
-        : tiny_lfu_(), provider_(dir_path, tiny_lfu_)
+        : tiny_lfu_(), provider_(std::move(dir_path), tiny_lfu_)
 #if USE_LRU_FLAG
         , lru_(static_cast<size_t>(LRU_SIZE))
 #endif
