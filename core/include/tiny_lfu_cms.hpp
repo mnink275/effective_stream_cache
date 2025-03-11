@@ -121,7 +121,7 @@ class TinyLFU<T, SampleSize, NumCounters, true> final {
 
  private:
   CountMinSketch<NumCounters> sketch_;
-  BloomFilter door_keeper_{SampleSize, 0.01};
+  BloomFilter<SampleSize> door_keeper_;
   TGlobalCounter global_counter_{0};
 };
 
