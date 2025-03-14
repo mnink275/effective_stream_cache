@@ -42,4 +42,4 @@ format:
 # Run tests in debug
 .PHONY: tests
 tests: build-debug
-	@cd build_debug && ctest -V
+	@cd build_debug && /home/ink/repositories/effective_stream_cache/build_debug/test/cache_test -V

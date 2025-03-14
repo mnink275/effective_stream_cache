@@ -7,19 +7,22 @@ namespace cache::test {
 using Key = uint32_t;
 using namespace std::chrono_literals;
 
-TEST(LargePage, Basics) {
+TEST(LargePage, BasicsNoTTL) {
   TTinyLFU tiny_lfu;
   LargePage large_page{tiny_lfu};
 
+  const auto now = std::chrono::steady_clock::now();
+  const auto far_future = now + 1h;
+
   for (size_t i = 0; i < SMALL_PAGE_SIZE; ++i) {
-    EXPECT_FALSE(large_page.Get(i));
-    large_page.Update(i);
-    EXPECT_TRUE(large_page.Get(i));
+    EXPECT_FALSE(large_page.Get(i, now));
+    large_page.Update(i, far_future);
+    EXPECT_TRUE(large_page.Get(i, now));
   }
 
   large_page.Clear();
   for (size_t i = 0; i < SMALL_PAGE_SIZE; ++i) {
-    EXPECT_FALSE(large_page.Get(i));
+    EXPECT_FALSE(large_page.Get(i, now));
   }
 }
 
@@ -32,6 +35,9 @@ TEST(LargePage, SerializeDeserialize) {
   std::cout << "Seed: " << seed << std::endl;
   std::mt19937 gen(seed);
 
+  const auto now = std::chrono::steady_clock::now();
+  const auto far_future = now + 1h;
+
   const auto NUM_KEYS = 20'000;
   std::vector<uint32_t> keys;
   keys.reserve(NUM_KEYS);
@@ -39,13 +45,13 @@ TEST(LargePage, SerializeDeserialize) {
     const uint32_t key = gen();
     keys.push_back(key);
 
-    if (!large_page.Get(key)) large_page.Update(key);
+    if (!large_page.Get(key, now)) large_page.Update(key, far_future);
   }
 
   tiny_lfu.Clear();
   LargePage large_page_copy{tiny_lfu};
   for (auto key : keys) {
-    if (!large_page_copy.Get(key)) large_page_copy.Update(key);
+    if (!large_page_copy.Get(key, now)) large_page_copy.Update(key, far_future);
   }
 
   {

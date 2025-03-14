@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+
 #include <boost/intrusive/link_mode.hpp>
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/list_hook.hpp>
@@ -25,20 +27,17 @@ using ListBaseHook = boost::intrusive::list_base_hook<LinkMode>;
 using UnorderedSetBaseHook = boost::intrusive::unordered_set_base_hook<LinkMode>;
 
 template <class Key>
-class Node final : public ListBaseHook, public UnorderedSetBaseHook {
- public:
-  explicit Node(Key key) : key_(std::move(key)) {}
+struct Node final : public ListBaseHook, public UnorderedSetBaseHook {
+  explicit Node(Key key, std::chrono::steady_clock::time_point expiration)
+    : key(std::move(key)), expiration(expiration) {}
 
-  const Key& Get() const noexcept { return key_; }
-  void Set(Key key) { key_ = std::move(key); }
-
- private:
-  Key key_;
+  Key key;
+  std::chrono::steady_clock::time_point expiration;
 };
 
 template <class SomeKey>
 const SomeKey& GetKey(const Node<SomeKey>& node) noexcept {
-  return node.Get();
+  return node.key;
 }
 
 template <class T>
@@ -68,7 +67,7 @@ class LRU final {
     }
   }
 
-  std::optional<Key> Update(Key key) {
+  std::optional<Key> Update(Key key, std::chrono::steady_clock::time_point expiration) {
     std::optional<Key> evicted_key;
     auto it = map_.find(key, map_.hash_function(), map_.key_eq());
     if (it != map_.end()) {
@@ -78,20 +77,25 @@ class LRU final {
 
     if (map_.size() == buckets_.size()) {
       auto node = ExtractNode(list_.begin());
-      evicted_key = node->Get();
-      node->Set(key);
+      evicted_key = node->key;
+      node->key = key;
+      node->expiration = expiration;
       InsertNode(std::move(node));
     } else {
-      auto node = std::make_unique<LruNode>(Key(key));
+      auto node = std::make_unique<LruNode>(key, expiration);
       InsertNode(std::move(node));
     }
 
     return evicted_key;
   }
 
-  bool Get(Key key) {
+  bool Get(Key key, std::chrono::steady_clock::time_point now) {
     auto it = map_.find(key, map_.hash_function(), map_.key_eq());
     if (it == map_.end()) return false;
+    if (it->expiration < now) {
+      ExtractNode(list_.iterator_to(*it));
+      return false;
+    }
 
     list_.splice(list_.end(), list_, list_.iterator_to(*it));
     return true;
