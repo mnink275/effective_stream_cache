@@ -2,6 +2,7 @@
 
 #include <cache_config.hpp>
 #include <utils.hpp>
+#include <chrono>
 
 #include <immintrin.h>
 
@@ -19,8 +20,12 @@ inline size_t SmallPageIndex(Key key) noexcept {
 
 class SmallPageAdvanced {
 public:
+    struct Payload {
+        std::chrono::time_point<std::chrono::steady_clock> expiration{};
+    };
+
     explicit SmallPageAdvanced(TTinyLFU& tiny_lfu) noexcept : tiny_lfu_(tiny_lfu) {
-        records_.fill(INVALID_HASH);
+        Clear();
     }
 
 #if ENABLE_STATISTICS_FLAG
@@ -39,9 +44,8 @@ public:
 #endif
 
     void Clear() noexcept {
-        for (auto& r : records_) {
-            r = INVALID_HASH;
-        }
+        records_.fill(INVALID_HASH);
+        payload_.fill(Payload{});
     }
 
     void Load(const char* buffer) noexcept {
@@ -51,6 +55,10 @@ public:
 
         for (size_t i = 0; i < records_.size(); ++i) {
             utils::BinaryRead(buffer + i * sizeof(Key), &records_[i], sizeof(Key));
+        }
+        std::advance(buffer, records_.size() * sizeof(Key));
+        for (size_t i = 0; i < payload_.size(); ++i) {
+            utils::BinaryRead(buffer + i * sizeof(Payload), &payload_[i], sizeof(Payload));
         }
     }
 
@@ -62,9 +70,13 @@ public:
         for (size_t i = 0; i < records_.size(); ++i) {
             utils::BinaryWrite(buffer + i * sizeof(Key), &records_[i], sizeof(Key));
         }
+        std::advance(buffer, records_.size() * sizeof(Key));
+        for (size_t i = 0; i < payload_.size(); ++i) {
+            utils::BinaryWrite(buffer + i * sizeof(Payload), &payload_[i], sizeof(Payload));
+        }
     }
 
-    bool Get(Key key) noexcept {
+    bool Get(Key key, std::chrono::time_point<std::chrono::steady_clock> now) noexcept {
 #if USE_BF_FLAG
         if (!bloom_filter_.Test(key)) {
             return false;
@@ -81,14 +93,19 @@ public:
         size_t N = records_.size();
         assert(N % 8 == 0);
         for (size_t i = 0; i < N; i += 8) {
-            reg y = _mm256_load_si256( (reg*) &records_[i] );
+            reg y = _mm256_load_si256(reinterpret_cast<reg*>(&records_[i]));
             y = _mm256_subs_epi8(y, kSignedIntMinReg);
 
             reg m = _mm256_cmpeq_epi32(x, y);
             if (!_mm256_testz_si256(m, m)) {
-                size_t mask = _mm256_movemask_ps((__m256) m);
+                size_t mask = _mm256_movemask_ps(std::bit_cast<__m256>(m));
                 size_t idx = i + __builtin_ctz(mask);
 
+                if (payload_[idx].expiration < now) {
+                    records_[idx] = INVALID_HASH;
+                    SiftDown(idx);
+                    return false;
+                }
                 tiny_lfu_.Add(key);
                 Raise(idx);
                 return true;
@@ -97,6 +114,11 @@ public:
 #else
         for (size_t i = 0; i < records_.size(); ++i) {
             if (records_[i] == key) {
+                if (payload_[i].expiration < now) {
+                    records_[i] = INVALID_HASH;
+                    SiftDown(i);
+                    return false;
+                }
                 tiny_lfu_.Add(key);
                 Raise(i);
                 return true;
@@ -107,12 +129,10 @@ public:
         return false;
     }
 
-    void Update(Key key) noexcept {
-        // key не содержится в records_
-        // assert(FindIdxOf(key) == INVALID_KEY);
-
+    bool Update(Key key, std::chrono::time_point<std::chrono::steady_clock> expiration) noexcept {
         if (records_.back() == INVALID_HASH) {
             records_.back() = key;
+            payload_.back().expiration = expiration;
             tiny_lfu_.Add(key);
 
 #if USE_BF_FLAG
@@ -120,7 +140,7 @@ public:
 #endif
 
             Raise(records_.size() - 1);
-            return;
+            return true;
         }
 
         auto victim = records_.back();
@@ -140,12 +160,12 @@ public:
 #endif
 
             Raise(records_.size() - 1);
+            return true;
         }
 #if ENABLE_STATISTICS_FLAG
-        else {
-            drop_keys_due_low_freq_++;
-        }
+        drop_keys_due_low_freq_++;
 #endif
+        return false;
     }
 
     bool operator==(const SmallPageAdvanced& other) const noexcept {
@@ -154,13 +174,23 @@ public:
 
 private:
     void Raise(size_t i) noexcept {  // поднимает запись i в соответствии с частотой
-        while (i && tiny_lfu_.Estimate(records_[i - 1]) < tiny_lfu_.Estimate(records_[i])) {
+        while (i > 0 && tiny_lfu_.Estimate(records_[i - 1]) < tiny_lfu_.Estimate(records_[i])) {
             std::swap(records_[i - 1], records_[i]);
+            std::swap(payload_[i - 1], payload_[i]);
             --i;
         }
     }
 
+    void SiftDown(size_t i) noexcept {
+        while (i + 1 < SMALL_PAGE_SIZE && records_[i + 1] != INVALID_HASH) {
+            std::swap(records_[i], records_[i + 1]);
+            std::swap(payload_[i], payload_[i + 1]);
+            ++i;
+        }
+    }
+
     alignas(32) std::array<Key, SMALL_PAGE_SIZE> records_{};
+    std::array<Payload, SMALL_PAGE_SIZE> payload_{};
 
     TTinyLFU& tiny_lfu_;
 

@@ -62,7 +62,7 @@ public:
 
             return page_infos[i].ptr;
         }
-#if ENABLE_STATISTICS
+#if ENABLE_STATISTICS_FLAG
         if (CalledOnUpdate) dropped_keys_++;
 #endif
 
@@ -84,7 +84,7 @@ public:
 #endif
 
     ~LargePageProvider() {
-        if constexpr (ENABLE_STATISTICS) PrintStatistics();
+        if constexpr (ENABLE_STATISTICS_FLAG) PrintStatistics();
     }
 
 private:

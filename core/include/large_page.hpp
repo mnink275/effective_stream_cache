@@ -30,27 +30,27 @@ public:
         file.read(buff.data(), kDataSizeInBytes);
 
         for (size_t i = 0; i < SMALL_PAGE_NUMBER; ++i) {
-            small_pages_[i].Load(buff.data() + i * SMALL_PAGE_SIZE * sizeof(Key));
+            small_pages_[i].Load(buff.data() + i * SMALL_PAGE_SIZE * (sizeof(Key) + sizeof(SmallPage::Payload)));
         }
     }
 
     void Store(std::ofstream& file) const {
         static std::array<char, kDataSizeInBytes> buff{};
         for (size_t i = 0; i < SMALL_PAGE_NUMBER; ++i) {
-            small_pages_[i].Store(buff.data() + i * SMALL_PAGE_SIZE * sizeof(Key));
+            small_pages_[i].Store(buff.data() + i * SMALL_PAGE_SIZE * (sizeof(Key) + sizeof(SmallPage::Payload)));
         }
 
         file.write(buff.data(), kDataSizeInBytes);
     }
 
-    bool Get(Key key) noexcept { return small_pages_[SmallPageIndex(key)].Get(key); }
+    bool Get(Key key, std::chrono::time_point<std::chrono::steady_clock> now) noexcept { return small_pages_[SmallPageIndex(key)].Get(key, now); }
 
-    void Update(Key key) noexcept {
+    void Update(Key key, std::chrono::time_point<std::chrono::steady_clock> expiration) noexcept {
         auto small_idx = SmallPageIndex(key);
-        small_pages_[small_idx].Update(key);
+        small_pages_[small_idx].Update(key, expiration);
     }
 
-#if ENABLE_STATISTICS
+#if ENABLE_STATISTICS_FLAG
     std::vector<double> GetSmallPagesFillFactors() {
         std::vector<double> res;
         res.reserve(small_pages_.size());
@@ -85,7 +85,8 @@ public:
     }
 
 private:
-    static constexpr std::size_t kDataSizeInBytes = SMALL_PAGE_NUMBER * SMALL_PAGE_SIZE * sizeof(Key);
+    static constexpr std::size_t kDataSizeInBytes =
+        SMALL_PAGE_NUMBER * SMALL_PAGE_SIZE * (sizeof(Key) + sizeof(SmallPageAdvanced::Payload));
 
     std::array<SmallPage, SMALL_PAGE_NUMBER> small_pages_;
 };

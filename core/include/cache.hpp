@@ -18,21 +18,21 @@ public:
 #endif
         {}
 
-    bool Get(Key key) {
+    bool Get(Key key, std::chrono::time_point<std::chrono::steady_clock> now) {
 #if USE_LRU_FLAG
-        if (lru_.Get(key)) return true;
+        if (lru_.Get(key, now)) return true;
 #endif
 
         auto* maybe_large_page = provider_.Get</*CalledOnUpdate=*/false>(key);
 
         if (maybe_large_page == nullptr) return false;
 
-        return maybe_large_page->Get(key);
+        return maybe_large_page->Get(key, now);
     }
 
-    void Update(Key key) {
+    void Update(Key key, std::chrono::time_point<std::chrono::steady_clock> expiration) {
 #if USE_LRU_FLAG
-        auto lru_evicted = lru_.Update(key);
+        auto lru_evicted = lru_.Update(key, expiration);
         if (!lru_evicted) return;
 
         key = *lru_evicted;
@@ -42,7 +42,7 @@ public:
 
         if (maybe_large_page == nullptr) return;
 
-        maybe_large_page->Update(key);
+        maybe_large_page->Update(key, expiration);
     }
 
     void Store() const { provider_.Store(); }
