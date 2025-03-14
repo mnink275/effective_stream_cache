@@ -53,13 +53,9 @@ public:
         bloom_filter_.Load(file);
 #endif
 
-        for (size_t i = 0; i < records_.size(); ++i) {
-            utils::BinaryRead(buffer + i * sizeof(Key), &records_[i], sizeof(Key));
-        }
-        std::advance(buffer, records_.size() * sizeof(Key));
-        for (size_t i = 0; i < payload_.size(); ++i) {
-            utils::BinaryRead(buffer + i * sizeof(Payload), &payload_[i], sizeof(Payload));
-        }
+        utils::LoadArrayFromBuffer(buffer, records_);
+        std::advance(buffer, records_.size() * sizeof(records_[0]));
+        utils::LoadArrayFromBuffer(buffer, payload_);
     }
 
     void Store(char* buffer) const noexcept {
@@ -67,13 +63,9 @@ public:
         bloom_filter_.Store(file);
 #endif
 
-        for (size_t i = 0; i < records_.size(); ++i) {
-            utils::BinaryWrite(buffer + i * sizeof(Key), &records_[i], sizeof(Key));
-        }
-        std::advance(buffer, records_.size() * sizeof(Key));
-        for (size_t i = 0; i < payload_.size(); ++i) {
-            utils::BinaryWrite(buffer + i * sizeof(Payload), &payload_[i], sizeof(Payload));
-        }
+        utils::StoreArrayToBuffer(buffer, records_);
+        std::advance(buffer, records_.size() * sizeof(records_[0]));
+        utils::StoreArrayToBuffer(buffer, payload_);
     }
 
     bool Get(Key key, std::chrono::time_point<std::chrono::steady_clock> now) noexcept {
@@ -189,6 +181,10 @@ private:
         }
     }
 
+ public:
+  static constexpr size_t kDataSizeInBytes = SMALL_PAGE_SIZE * (sizeof(Key) + sizeof(Payload));
+
+ private:
     alignas(32) std::array<Key, SMALL_PAGE_SIZE> records_{};
     std::array<Payload, SMALL_PAGE_SIZE> payload_{};
 

@@ -30,14 +30,14 @@ public:
         file.read(buff.data(), kDataSizeInBytes);
 
         for (size_t i = 0; i < SMALL_PAGE_NUMBER; ++i) {
-            small_pages_[i].Load(buff.data() + i * SMALL_PAGE_SIZE * (sizeof(Key) + sizeof(SmallPage::Payload)));
+            small_pages_[i].Load(buff.data() + i * SmallPage::kDataSizeInBytes);
         }
     }
 
     void Store(std::ofstream& file) const {
         static std::array<char, kDataSizeInBytes> buff{};
         for (size_t i = 0; i < SMALL_PAGE_NUMBER; ++i) {
-            small_pages_[i].Store(buff.data() + i * SMALL_PAGE_SIZE * (sizeof(Key) + sizeof(SmallPage::Payload)));
+            small_pages_[i].Store(buff.data() + i * SmallPage::kDataSizeInBytes);
         }
 
         file.write(buff.data(), kDataSizeInBytes);
@@ -86,7 +86,7 @@ public:
 
 private:
     static constexpr std::size_t kDataSizeInBytes =
-        SMALL_PAGE_NUMBER * SMALL_PAGE_SIZE * (sizeof(Key) + sizeof(SmallPageAdvanced::Payload));
+        SMALL_PAGE_NUMBER * SmallPage::kDataSizeInBytes;
 
     std::array<SmallPage, SMALL_PAGE_NUMBER> small_pages_;
 };
