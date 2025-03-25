@@ -8,9 +8,10 @@
 #include <boost/intrusive/link_mode.hpp>
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/list_hook.hpp>
-
 #include <boost/intrusive/unordered_set.hpp>
 #include <boost/intrusive/unordered_set_hook.hpp>
+
+#include <optional>
 
 // Based on: https://github.com/apolukhin/apolukhin.github.io/blob/master/presentations/C%2B%2B%20Faster.cpp
 
