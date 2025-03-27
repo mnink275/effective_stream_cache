@@ -46,8 +46,7 @@ public:
     bool Get(Key key, std::chrono::time_point<std::chrono::steady_clock> now) noexcept { return small_pages_[SmallPageIndex(key)].Get(key, now); }
 
     void Update(Key key, std::chrono::time_point<std::chrono::steady_clock> expiration) noexcept {
-        auto small_idx = SmallPageIndex(key);
-        small_pages_[small_idx].Update(key, expiration);
+        small_pages_[SmallPageIndex(key)].Update(key, expiration);
     }
 
 #if ENABLE_STATISTICS_FLAG

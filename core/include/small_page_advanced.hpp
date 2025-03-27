@@ -1,8 +1,10 @@
 #pragma once
 
+#include <chrono>
+
 #include <cache_config.hpp>
 #include <utils.hpp>
-#include <chrono>
+#include <tiny_lfu_cms.hpp>
 
 #include <immintrin.h>
 
@@ -84,33 +86,25 @@ public:
 
         size_t N = records_.size();
         assert(N % 8 == 0);
-        for (size_t i = 0; i < N; i += 8) {
-            reg y = _mm256_load_si256(reinterpret_cast<reg*>(&records_[i]));
+        for (size_t block_id = 0; block_id < N; block_id += 8) {
+            reg y = _mm256_load_si256(reinterpret_cast<reg*>(&records_[block_id]));
             y = _mm256_subs_epi8(y, kSignedIntMinReg);
 
             reg m = _mm256_cmpeq_epi32(x, y);
             if (!_mm256_testz_si256(m, m)) {
                 size_t mask = _mm256_movemask_ps(std::bit_cast<__m256>(m));
-                size_t idx = i + __builtin_ctz(mask);
+                size_t i = block_id + __builtin_ctz(mask);
 
-                if (payload_[idx].expiration < now) {
-                    records_[idx] = INVALID_HASH;
-                    SiftDown(idx);
-                    return false;
-                }
+                if (CheckEvictedByTTL(i, now)) return false;
                 tiny_lfu_.Add(key);
-                Raise(idx);
+                Raise(i);
                 return true;
             }
         }
 #else
         for (size_t i = 0; i < records_.size(); ++i) {
             if (records_[i] == key) {
-                if (payload_[i].expiration < now) {
-                    records_[i] = INVALID_HASH;
-                    SiftDown(i);
-                    return false;
-                }
+                if (CheckEvictedByTTL(i, now)) return false;
                 tiny_lfu_.Add(key);
                 Raise(i);
                 return true;
@@ -164,7 +158,7 @@ public:
         return records_ == other.records_;
     }
 
-private:
+ private:
     void Raise(size_t i) noexcept {  // поднимает запись i в соответствии с частотой
         while (i > 0 && tiny_lfu_.Estimate(records_[i - 1]) < tiny_lfu_.Estimate(records_[i])) {
             std::swap(records_[i - 1], records_[i]);
@@ -179,6 +173,25 @@ private:
             std::swap(payload_[i], payload_[i + 1]);
             ++i;
         }
+    }
+
+    bool CheckEvictedByTTL(size_t idx, std::chrono::time_point<std::chrono::steady_clock> now) {
+        bool should_evict = false;
+        if constexpr (cache::TTL_EVICTION_PROB > 0.0) {
+            static std::mt19937 gen(BERNULLI_SEED ? BERNULLI_SEED : std::random_device{}());
+            static std::bernoulli_distribution dist(cache::TTL_EVICTION_PROB);
+            should_evict = dist(gen);
+        } else {
+            should_evict = payload_[idx].expiration < now;
+        }
+
+        if (should_evict) {
+            records_[idx] = INVALID_HASH;
+            SiftDown(idx);
+            return true;
+        }
+
+        return false;
     }
 
  public:

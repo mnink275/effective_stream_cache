@@ -29,7 +29,18 @@ using TTinyLFU = TinyLFU<Key, SAMPLE_SIZE, TLFU_SIZE, USE_DOOR_KEEPER>;
 #define USE_BF_FLAG false
 #define USE_SIMD_FLAG true
 
+// ------ for debug and testing purposes ------ //
 #define ENABLE_STATISTICS_FLAG false
+
+// Probability range: [0.0, 1.0]
+// Note: 0.0 - no TTL eviction
+constexpr auto TTL_EVICTION_PROB = 0.0;
+
+// Eviction implemented via Bernoulli distribution
+// Set seed value or 0 to use random seed of Bernoulli distribution
+constexpr size_t BERNULLI_SEED = 0;
+
+// ------------------------------------------- //
 
 #if USE_BF_FLAG
 inline constexpr bool USE_BF = true;

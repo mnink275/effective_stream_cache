@@ -1,6 +1,9 @@
 #pragma once
 
 #include <chrono>
+#include <random>
+
+#include <cache_config.hpp>
 
 #include <boost/intrusive/link_mode.hpp>
 #include <boost/intrusive/list.hpp>
@@ -92,7 +95,17 @@ class LRU final {
   bool Get(Key key, std::chrono::steady_clock::time_point now) {
     auto it = map_.find(key, map_.hash_function(), map_.key_eq());
     if (it == map_.end()) return false;
-    if (it->expiration < now) {
+
+    bool should_evict = false;
+    if constexpr (TTL_EVICTION_PROB > 0.0) {
+      static std::mt19937 gen(BERNULLI_SEED ? BERNULLI_SEED : std::random_device{}());
+      static std::bernoulli_distribution dist(TTL_EVICTION_PROB);
+      should_evict = dist(gen);
+    } else {
+      should_evict = it->expiration < now;
+    }
+
+    if (should_evict) {
       ExtractNode(list_.iterator_to(*it));
       return false;
     }
