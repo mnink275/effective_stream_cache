@@ -33,6 +33,10 @@ clean-run-debug clean-run-release: clean-run-%: clean
 clean:
 	@rm -rf build_*
 
+.PHONY: clean-data
+clean-data:
+	@rm -rf ./data/*
+
 # Format the sources
 .PHONY: format
 format:
@@ -42,4 +46,4 @@ format:
 # Run tests in debug
 .PHONY: tests
 tests: build-debug
-	@cd build_debug && /home/ink/repositories/effective_stream_cache/build_debug/test/cache_test -V
+	@cd build_debug && ./test/cache_test -V
