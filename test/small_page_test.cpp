@@ -12,8 +12,8 @@ TEST(SmallPageTLFU, BasicsNoTTL) {
   TTinyLFU tiny_lfu;
   SmallPageAdvanced small_page{tiny_lfu};
 
-  const auto now = std::chrono::steady_clock::now();
-  const auto far_future = now + 1h;
+  const auto now = utils::Now();
+  const auto far_future = now + 3600;
   for (size_t i = 0; i < SMALL_PAGE_SIZE; ++i) {
     EXPECT_FALSE(small_page.Get(i, now));
     EXPECT_TRUE(small_page.Update(i, far_future));
@@ -25,8 +25,8 @@ TEST(SmallPageTLFU, BasicsWithTTL) {
   TTinyLFU tiny_lfu;
   SmallPageAdvanced small_page{tiny_lfu};
 
-  const auto now = std::chrono::steady_clock::now();
-  const auto future = now + 1h;
+  const auto now = utils::Now();
+  const auto future = now + 3600;
   for (size_t i = 0; i < SMALL_PAGE_SIZE; ++i) {
     EXPECT_FALSE(small_page.Get(i, now));
     EXPECT_TRUE(small_page.Update(i, future));
@@ -34,11 +34,11 @@ TEST(SmallPageTLFU, BasicsWithTTL) {
   }
 
   for (size_t i = 0; i < SMALL_PAGE_SIZE; ++i) {
-    EXPECT_FALSE(small_page.Get(i, future + 2h));
+    EXPECT_FALSE(small_page.Get(i, future + 2 * 3600));
   }
 
   for (size_t i = 0; i < SMALL_PAGE_SIZE; ++i) {
-    EXPECT_TRUE(small_page.Update(i, future + 2h));
+    EXPECT_TRUE(small_page.Update(i, future + 2 * 3600));
   }
 }
 

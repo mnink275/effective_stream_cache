@@ -11,8 +11,8 @@ TEST(LargePage, BasicsNoTTL) {
   TTinyLFU tiny_lfu;
   LargePage large_page{tiny_lfu};
 
-  const auto now = std::chrono::steady_clock::now();
-  const auto far_future = now + 1h;
+  const auto now = utils::Now();
+  const auto far_future = now + 3600;
 
   for (size_t i = 0; i < SMALL_PAGE_SIZE; ++i) {
     EXPECT_FALSE(large_page.Get(i, now));
@@ -35,8 +35,8 @@ TEST(LargePage, SerializeDeserialize) {
   std::cout << "Seed: " << seed << std::endl;
   std::mt19937 gen(seed);
 
-  const auto now = std::chrono::steady_clock::now();
-  const auto far_future = now + 1h;
+  const auto now = utils::Now();
+  const auto far_future = now + 3600;
 
   const auto NUM_KEYS = 20'000;
   std::vector<uint32_t> keys;

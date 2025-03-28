@@ -11,8 +11,8 @@ using namespace std::chrono_literals;
 TEST(LRU, BasicsNoTTL) {
   LRU<uint32_t> lru{3};
 
-  const auto now = std::chrono::steady_clock::now();
-  const auto far_future = now + 1h;
+  const auto now = utils::Now();
+  const auto far_future = now + 3600;
 
   EXPECT_FALSE(lru.Update(1, far_future).has_value());
   EXPECT_FALSE(lru.Update(2, far_future).has_value());
@@ -26,8 +26,8 @@ TEST(LRU, BasicsNoTTL) {
 TEST(LRU, BasicWithTTL) {
   LRU<uint32_t> lru{3};
 
-  const auto now = std::chrono::steady_clock::now();
-  const auto future = now + 1h;
+  const auto now = utils::Now();
+  const auto future = now + 3600;
 
   EXPECT_FALSE(lru.Update(1, future).has_value());
   EXPECT_FALSE(lru.Update(2, future).has_value());
@@ -37,16 +37,16 @@ TEST(LRU, BasicWithTTL) {
   EXPECT_TRUE(lru.Get(2, now));
   EXPECT_TRUE(lru.Get(3, now));
 
-  EXPECT_FALSE(lru.Get(1, future + 1min));
-  EXPECT_FALSE(lru.Get(2, future + 1min));
-  EXPECT_FALSE(lru.Get(3, future + 1min));
+  EXPECT_FALSE(lru.Get(1, future + 60));
+  EXPECT_FALSE(lru.Get(2, future + 60));
+  EXPECT_FALSE(lru.Get(3, future + 60));
 }
 
 TEST(LRU, EvictionNoTTL) {
   LRU<uint32_t> lru{3};
 
-  const auto now = std::chrono::steady_clock::now();
-  const auto far_future = now + 1h;
+  const auto now = utils::Now();
+  const auto far_future = now + 3600;
 
   EXPECT_FALSE(lru.Update(1, far_future).has_value());
   EXPECT_FALSE(lru.Update(2, far_future).has_value());
@@ -68,8 +68,8 @@ TEST(LRU, EvictionNoTTL) {
 TEST(LRU, MaxSizeGreaterThanZeroNoTTL) {
   LRU<uint32_t> lru{0};
 
-  const auto now = std::chrono::steady_clock::now();
-  const auto far_future = now + 1h;
+  const auto now = utils::Now();
+  const auto far_future = now + 3600;
 
   EXPECT_FALSE(lru.Update(1, far_future).has_value());
   EXPECT_TRUE(lru.Update(2, far_future).has_value());
