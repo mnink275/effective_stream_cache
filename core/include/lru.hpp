@@ -98,7 +98,7 @@ class LRU final {
 
     bool should_evict = false;
     if constexpr (TTL_EVICTION_PROB > 0.0) {
-      static std::mt19937 gen(BERNULLI_SEED ? BERNULLI_SEED : std::random_device{}());
+      static std::mt19937 gen(BERNOULLI_SEED ? BERNOULLI_SEED : std::random_device{}());
       static std::bernoulli_distribution dist(TTL_EVICTION_PROB);
       should_evict = dist(gen);
     } else {

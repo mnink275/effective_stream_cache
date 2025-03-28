@@ -178,7 +178,7 @@ public:
     bool CheckEvictedByTTL(size_t idx, std::chrono::time_point<std::chrono::steady_clock> now) {
         bool should_evict = false;
         if constexpr (cache::TTL_EVICTION_PROB > 0.0) {
-            static std::mt19937 gen(BERNULLI_SEED ? BERNULLI_SEED : std::random_device{}());
+            static std::mt19937 gen(BERNOULLI_SEED ? BERNOULLI_SEED : std::random_device{}());
             static std::bernoulli_distribution dist(cache::TTL_EVICTION_PROB);
             should_evict = dist(gen);
         } else {

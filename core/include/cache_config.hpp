@@ -38,7 +38,7 @@ constexpr auto TTL_EVICTION_PROB = 0.0;
 
 // Eviction implemented via Bernoulli distribution
 // Set seed value or 0 to use random seed of Bernoulli distribution
-constexpr size_t BERNULLI_SEED = 0;
+constexpr size_t BERNOULLI_SEED = 0;
 
 // ------------------------------------------- //
 
