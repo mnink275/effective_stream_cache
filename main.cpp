@@ -99,8 +99,8 @@ BenchmarkResult RunBenchmark(const auto& keys, TCache& cache) {
     auto updates_time = 0ns;
     auto start = std::chrono::high_resolution_clock::now();
 
-    const auto now = std::chrono::steady_clock::now();
-    const auto far_future = now + 1h;
+    const auto now = utils::Now();
+    const auto far_future = now + 3600;
     for (auto key : keys) {
         if (cache.Get(key, now)) {
             hitCount++;
@@ -141,7 +141,7 @@ int main() {
     if (USE_SIMD) std::cout << "SIMD " << (USE_SIMD ? "ON" : "OFF") << std::endl;
 #endif
 
-    const size_t kBatchSize = 500'000'000;
+    const size_t kBatchSize = 700'000'000;
     std::vector<uint32_t> benchmark_keys;
     benchmark_keys.reserve(kBatchSize);
 
