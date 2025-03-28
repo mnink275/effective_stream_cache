@@ -32,6 +32,9 @@ jobs:
         # NOTE: If a boost version matching all requirements cannot be found,
         # this build step will fail
 
+    - name: Init Git Submodules
+      run: git submodule update --init
+
     - name: Configure CMake
       run: make cmake-debug
       env:
