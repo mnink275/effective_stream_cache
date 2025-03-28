@@ -28,6 +28,7 @@ inline void BinaryWrite(char* buffer, const void* data, size_t size) noexcept {
 }
 
 template <class T, size_t N>
+requires (std::is_trivial_v<T>)
 inline void StoreArrayToBuffer(char* buffer, const std::array<T, N>& data) noexcept {
     for (size_t i = 0; i < N; ++i) {
         BinaryWrite(buffer + i * sizeof(T), &data[i], sizeof(T));
@@ -43,6 +44,7 @@ inline void BinaryRead(const char* buffer, void* data, size_t size) noexcept {
 }
 
 template <class T, size_t N>
+requires (std::is_trivial_v<T>)
 inline void LoadArrayFromBuffer(const char* buffer, std::array<T, N>& data) noexcept {
     for (size_t i = 0; i < N; ++i) {
         BinaryRead(buffer + i * sizeof(T), &data[i], sizeof(T));

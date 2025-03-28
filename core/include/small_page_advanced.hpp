@@ -23,7 +23,7 @@ inline size_t SmallPageIndex(Key key) noexcept {
 class SmallPageAdvanced {
 public:
     struct Payload {
-        uint32_t expiration_time{};
+        uint32_t expiration_time;
     };
 
     explicit SmallPageAdvanced(TTinyLFU& tiny_lfu) noexcept : tiny_lfu_(tiny_lfu) {
@@ -47,7 +47,7 @@ public:
 
     void Clear() noexcept {
         records_.fill(INVALID_HASH);
-        payload_.fill(Payload{});
+        payload_.fill(Payload{0});
     }
 
     void Load(const char* buffer) noexcept {
