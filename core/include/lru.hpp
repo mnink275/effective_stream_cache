@@ -31,11 +31,11 @@ using UnorderedSetBaseHook = boost::intrusive::unordered_set_base_hook<LinkMode>
 
 template <class Key>
 struct Node final : public ListBaseHook, public UnorderedSetBaseHook {
-  explicit Node(Key key, std::chrono::steady_clock::time_point expiration)
-    : key(std::move(key)), expiration(expiration) {}
+  explicit Node(Key key, uint32_t expiration_time)
+    : key(std::move(key)), expiration_time(expiration_time) {}
 
   Key key;
-  std::chrono::steady_clock::time_point expiration;
+  uint32_t expiration_time;
 };
 
 template <class SomeKey>
@@ -70,7 +70,7 @@ class LRU final {
     }
   }
 
-  std::optional<Key> Update(Key key, std::chrono::steady_clock::time_point expiration) {
+  std::optional<Key> Update(Key key, uint32_t expiration_time) {
     std::optional<Key> evicted_key;
     auto it = map_.find(key, map_.hash_function(), map_.key_eq());
     if (it != map_.end()) {
@@ -82,17 +82,17 @@ class LRU final {
       auto node = ExtractNode(list_.begin());
       evicted_key = node->key;
       node->key = key;
-      node->expiration = expiration;
+      node->expiration_time = expiration_time;
       InsertNode(std::move(node));
     } else {
-      auto node = std::make_unique<LruNode>(key, expiration);
+      auto node = std::make_unique<LruNode>(key, expiration_time);
       InsertNode(std::move(node));
     }
 
     return evicted_key;
   }
 
-  bool Get(Key key, std::chrono::steady_clock::time_point now) {
+  bool Get(Key key, uint32_t now) {
     auto it = map_.find(key, map_.hash_function(), map_.key_eq());
     if (it == map_.end()) return false;
 
@@ -102,7 +102,7 @@ class LRU final {
       static std::bernoulli_distribution dist(TTL_EVICTION_PROB);
       should_evict = dist(gen);
     } else {
-      should_evict = it->expiration < now;
+      should_evict = it->expiration_time < now;
     }
 
     if (should_evict) {

@@ -18,7 +18,7 @@ public:
 #endif
         {}
 
-    bool Get(Key key, std::chrono::time_point<std::chrono::steady_clock> now) {
+    bool Get(Key key, uint32_t now) {
 #if USE_LRU_FLAG
         if (lru_.Get(key, now)) return true;
 #endif
@@ -30,9 +30,9 @@ public:
         return maybe_large_page->Get(key, now);
     }
 
-    void Update(Key key, std::chrono::time_point<std::chrono::steady_clock> expiration) {
+    void Update(Key key, uint32_t expiration_time) {
 #if USE_LRU_FLAG
-        auto lru_evicted = lru_.Update(key, expiration);
+        auto lru_evicted = lru_.Update(key, expiration_time);
         if (!lru_evicted) return;
 
         key = *lru_evicted;
@@ -42,7 +42,7 @@ public:
 
         if (maybe_large_page == nullptr) return;
 
-        maybe_large_page->Update(key, expiration);
+        maybe_large_page->Update(key, expiration_time);
     }
 
     void Store() const { provider_.Store(); }

@@ -23,7 +23,7 @@ inline size_t SmallPageIndex(Key key) noexcept {
 class SmallPageAdvanced {
 public:
     struct Payload {
-        std::chrono::time_point<std::chrono::steady_clock> expiration{};
+        uint32_t expiration_time{};
     };
 
     explicit SmallPageAdvanced(TTinyLFU& tiny_lfu) noexcept : tiny_lfu_(tiny_lfu) {
@@ -70,7 +70,7 @@ public:
         utils::StoreArrayToBuffer(buffer, payload_);
     }
 
-    bool Get(Key key, std::chrono::time_point<std::chrono::steady_clock> now) noexcept {
+    bool Get(Key key, uint32_t now) noexcept {
 #if USE_BF_FLAG
         if (!bloom_filter_.Test(key)) {
             return false;
@@ -115,10 +115,10 @@ public:
         return false;
     }
 
-    bool Update(Key key, std::chrono::time_point<std::chrono::steady_clock> expiration) noexcept {
+    bool Update(Key key, uint32_t expiration_time) noexcept {
         if (records_.back() == INVALID_HASH) {
             records_.back() = key;
-            payload_.back().expiration = expiration;
+            payload_.back().expiration_time = expiration_time;
             tiny_lfu_.Add(key);
 
 #if USE_BF_FLAG
@@ -175,14 +175,14 @@ public:
         }
     }
 
-    bool CheckEvictedByTTL(size_t idx, std::chrono::time_point<std::chrono::steady_clock> now) {
+    bool CheckEvictedByTTL(size_t idx, uint32_t now) {
         bool should_evict = false;
         if constexpr (cache::TTL_EVICTION_PROB > 0.0) {
             static std::mt19937 gen(BERNOULLI_SEED ? BERNOULLI_SEED : std::random_device{}());
             static std::bernoulli_distribution dist(cache::TTL_EVICTION_PROB);
             should_evict = dist(gen);
         } else {
-            should_evict = payload_[idx].expiration < now;
+            should_evict = payload_[idx].expiration_time < now;
         }
 
         if (should_evict) {

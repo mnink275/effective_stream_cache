@@ -43,10 +43,10 @@ public:
         file.write(buff.data(), kDataSizeInBytes);
     }
 
-    bool Get(Key key, std::chrono::time_point<std::chrono::steady_clock> now) noexcept { return small_pages_[SmallPageIndex(key)].Get(key, now); }
+    bool Get(Key key, uint32_t now) noexcept { return small_pages_[SmallPageIndex(key)].Get(key, now); }
 
-    void Update(Key key, std::chrono::time_point<std::chrono::steady_clock> expiration) noexcept {
-        small_pages_[SmallPageIndex(key)].Update(key, expiration);
+    void Update(Key key, uint32_t expiration_time) noexcept {
+        small_pages_[SmallPageIndex(key)].Update(key, expiration_time);
     }
 
 #if ENABLE_STATISTICS_FLAG

@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cassert>
 #include <cstdint>
+#include <chrono>
 #include <array>
 #include <cstring>
 #include <fstream>
@@ -45,6 +47,14 @@ inline void LoadArrayFromBuffer(const char* buffer, std::array<T, N>& data) noex
     for (size_t i = 0; i < N; ++i) {
         BinaryRead(buffer + i * sizeof(T), &data[i], sizeof(T));
     }
+}
+
+inline uint32_t Now() {
+    static constexpr uint32_t kTimeSinceEpoch = 1743161207; // ~2025-03-28
+    const auto seconds_since_epoch = std::chrono::steady_clock::now().time_since_epoch().count();
+    assert(seconds_since_epoch >= 0);
+    assert(seconds_since_epoch > kTimeSinceEpoch);
+    return seconds_since_epoch - kTimeSinceEpoch;
 }
 
 }  // namespace utils
