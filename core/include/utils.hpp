@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cassert>
 #include <cstdint>
+#include <chrono>
 #include <array>
 #include <cstring>
 #include <fstream>
@@ -25,12 +27,36 @@ inline void BinaryWrite(char* buffer, const void* data, size_t size) noexcept {
     std::memcpy(buffer, data, size);
 }
 
+template <class T, size_t N>
+requires (std::is_trivial_v<T>)
+inline void StoreArrayToBuffer(char* buffer, const std::array<T, N>& data) noexcept {
+    for (size_t i = 0; i < N; ++i) {
+        BinaryWrite(buffer + i * sizeof(T), &data[i], sizeof(T));
+    }
+}
+
 inline void BinaryRead(std::ifstream& in, void* data, size_t size) {
     in.read(reinterpret_cast<char*>(data), size);
 }
 
 inline void BinaryRead(const char* buffer, void* data, size_t size) noexcept {
     std::memcpy(data, buffer, size);
+}
+
+template <class T, size_t N>
+requires (std::is_trivial_v<T>)
+inline void LoadArrayFromBuffer(const char* buffer, std::array<T, N>& data) noexcept {
+    for (size_t i = 0; i < N; ++i) {
+        BinaryRead(buffer + i * sizeof(T), &data[i], sizeof(T));
+    }
+}
+
+inline uint32_t Now() {
+    static constexpr uint32_t kTimeSinceEpoch = 1743161207; // ~2025-03-28
+    const auto seconds_since_epoch = std::chrono::steady_clock::now().time_since_epoch().count();
+    assert(seconds_since_epoch >= 0);
+    assert(seconds_since_epoch > kTimeSinceEpoch);
+    return seconds_since_epoch - kTimeSinceEpoch;
 }
 
 }  // namespace utils

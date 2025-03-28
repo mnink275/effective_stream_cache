@@ -3,7 +3,7 @@
 #include <fstream>
 #include <iostream>
 
-#include "cache.hpp"
+#include <cache.hpp>
 
 using namespace std::chrono_literals;
 
@@ -98,12 +98,15 @@ BenchmarkResult RunBenchmark(const auto& keys, TCache& cache) {
 
     auto updates_time = 0ns;
     auto start = std::chrono::high_resolution_clock::now();
+
+    const auto now = utils::Now();
+    const auto far_future = now + 3600;
     for (auto key : keys) {
-        if (cache.Get(key)) {
+        if (cache.Get(key, now)) {
             hitCount++;
         } else {
             auto start_update = std::chrono::high_resolution_clock::now();
-            cache.Update(key);
+            cache.Update(key, far_future);
             updates_time += std::chrono::high_resolution_clock::now() - start_update;
         }
 
@@ -138,7 +141,7 @@ int main() {
     if (USE_SIMD) std::cout << "SIMD " << (USE_SIMD ? "ON" : "OFF") << std::endl;
 #endif
 
-    const size_t kBatchSize = 500'000'000;
+    const size_t kBatchSize = 700'000'000;
     std::vector<uint32_t> benchmark_keys;
     benchmark_keys.reserve(kBatchSize);
 
@@ -150,8 +153,6 @@ int main() {
     // std::string filename = "dataset/f_640M_28M.txt";
     // std::string filename = "dataset/WebSearch2.txt";
     std::string filename = "dataset/Financial1.txt";
-    // std::string filename = "/home/ink/Documents/Cache/Data/P14.txt";
-    // std::string filename = "/home/ink/Documents/Cache/Data/ds1.txt";
 
     std::ifstream input(filename);
     if (!input.is_open()) {

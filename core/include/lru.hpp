@@ -1,5 +1,10 @@
 #pragma once
 
+#include <chrono>
+#include <random>
+
+#include <cache_config.hpp>
+
 #include <boost/intrusive/link_mode.hpp>
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/list_hook.hpp>
@@ -25,20 +30,17 @@ using ListBaseHook = boost::intrusive::list_base_hook<LinkMode>;
 using UnorderedSetBaseHook = boost::intrusive::unordered_set_base_hook<LinkMode>;
 
 template <class Key>
-class Node final : public ListBaseHook, public UnorderedSetBaseHook {
- public:
-  explicit Node(Key key) : key_(std::move(key)) {}
+struct Node final : public ListBaseHook, public UnorderedSetBaseHook {
+  explicit Node(Key key, uint32_t expiration_time)
+    : key(std::move(key)), expiration_time(expiration_time) {}
 
-  const Key& Get() const noexcept { return key_; }
-  void Set(Key key) { key_ = std::move(key); }
-
- private:
-  Key key_;
+  Key key;
+  uint32_t expiration_time;
 };
 
 template <class SomeKey>
 const SomeKey& GetKey(const Node<SomeKey>& node) noexcept {
-  return node.Get();
+  return node.key;
 }
 
 template <class T>
@@ -68,7 +70,7 @@ class LRU final {
     }
   }
 
-  std::optional<Key> Update(Key key) {
+  std::optional<Key> Update(Key key, uint32_t expiration_time) {
     std::optional<Key> evicted_key;
     auto it = map_.find(key, map_.hash_function(), map_.key_eq());
     if (it != map_.end()) {
@@ -78,20 +80,35 @@ class LRU final {
 
     if (map_.size() == buckets_.size()) {
       auto node = ExtractNode(list_.begin());
-      evicted_key = node->Get();
-      node->Set(key);
+      evicted_key = node->key;
+      node->key = key;
+      node->expiration_time = expiration_time;
       InsertNode(std::move(node));
     } else {
-      auto node = std::make_unique<LruNode>(Key(key));
+      auto node = std::make_unique<LruNode>(key, expiration_time);
       InsertNode(std::move(node));
     }
 
     return evicted_key;
   }
 
-  bool Get(Key key) {
+  bool Get(Key key, uint32_t now) {
     auto it = map_.find(key, map_.hash_function(), map_.key_eq());
     if (it == map_.end()) return false;
+
+    bool should_evict = false;
+    if constexpr (TTL_EVICTION_PROB > 0.0) {
+      static std::mt19937 gen(BERNOULLI_SEED ? BERNOULLI_SEED : std::random_device{}());
+      static std::bernoulli_distribution dist(TTL_EVICTION_PROB);
+      should_evict = dist(gen);
+    } else {
+      should_evict = it->expiration_time < now;
+    }
+
+    if (should_evict) {
+      ExtractNode(list_.iterator_to(*it));
+      return false;
+    }
 
     list_.splice(list_.end(), list_, list_.iterator_to(*it));
     return true;

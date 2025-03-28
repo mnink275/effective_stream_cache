@@ -19,7 +19,7 @@ public:
     LargePageProvider(std::filesystem::path dir_path, TTinyLFU& tiny_lfu) : dir_path_(std::move(dir_path)), storage_(std::make_unique<Storage>(tiny_lfu)) {
         static_assert(LOADED_PAGE_NUMBER <= LARGE_PAGE_NUMBER);
         static_assert(LARGE_PAGE_SHIFT + SMALL_PAGE_SHIFT + SMALL_PAGE_SIZE_SHIFT <= 8 * sizeof(Key));
-        assert(std::filesystem::exists(dir_path));
+        if (!std::filesystem::exists(dir_path_)) std::filesystem::create_directory(dir_path_);
         LoadHeader();
 
         size_t j = 0;
@@ -62,7 +62,7 @@ public:
 
             return page_infos[i].ptr;
         }
-#if ENABLE_STATISTICS
+#if ENABLE_STATISTICS_FLAG
         if (CalledOnUpdate) dropped_keys_++;
 #endif
 
@@ -84,7 +84,7 @@ public:
 #endif
 
     ~LargePageProvider() {
-        if constexpr (ENABLE_STATISTICS) PrintStatistics();
+        if constexpr (ENABLE_STATISTICS_FLAG) PrintStatistics();
     }
 
 private:

@@ -30,27 +30,26 @@ public:
         file.read(buff.data(), kDataSizeInBytes);
 
         for (size_t i = 0; i < SMALL_PAGE_NUMBER; ++i) {
-            small_pages_[i].Load(buff.data() + i * SMALL_PAGE_SIZE * sizeof(Key));
+            small_pages_[i].Load(buff.data() + i * SmallPage::kDataSizeInBytes);
         }
     }
 
     void Store(std::ofstream& file) const {
         static std::array<char, kDataSizeInBytes> buff{};
         for (size_t i = 0; i < SMALL_PAGE_NUMBER; ++i) {
-            small_pages_[i].Store(buff.data() + i * SMALL_PAGE_SIZE * sizeof(Key));
+            small_pages_[i].Store(buff.data() + i * SmallPage::kDataSizeInBytes);
         }
 
         file.write(buff.data(), kDataSizeInBytes);
     }
 
-    bool Get(Key key) noexcept { return small_pages_[SmallPageIndex(key)].Get(key); }
+    bool Get(Key key, uint32_t now) noexcept { return small_pages_[SmallPageIndex(key)].Get(key, now); }
 
-    void Update(Key key) noexcept {
-        auto small_idx = SmallPageIndex(key);
-        small_pages_[small_idx].Update(key);
+    void Update(Key key, uint32_t expiration_time) noexcept {
+        small_pages_[SmallPageIndex(key)].Update(key, expiration_time);
     }
 
-#if ENABLE_STATISTICS
+#if ENABLE_STATISTICS_FLAG
     std::vector<double> GetSmallPagesFillFactors() {
         std::vector<double> res;
         res.reserve(small_pages_.size());
@@ -85,7 +84,8 @@ public:
     }
 
 private:
-    static constexpr std::size_t kDataSizeInBytes = SMALL_PAGE_NUMBER * SMALL_PAGE_SIZE * sizeof(Key);
+    static constexpr std::size_t kDataSizeInBytes =
+        SMALL_PAGE_NUMBER * SmallPage::kDataSizeInBytes;
 
     std::array<SmallPage, SMALL_PAGE_NUMBER> small_pages_;
 };
