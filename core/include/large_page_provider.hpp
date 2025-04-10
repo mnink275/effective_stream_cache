@@ -9,25 +9,20 @@
 namespace cache {
 
 class LargePageProvider {
-    struct Storage {
-        explicit Storage(TTinyLFU& tiny_lfu) : large_pages_(utils::MakeArray<LOADED_PAGE_NUMBER>(LargePage{tiny_lfu})) {}
-
-        std::array<LargePage, LOADED_PAGE_NUMBER> large_pages_;
-    };
-
 public:
     LargePageProvider(std::filesystem::path dir_path, TTinyLFU& tiny_lfu) : dir_path_(std::move(dir_path)), storage_(std::make_unique<Storage>(tiny_lfu)) {
         static_assert(LOADED_PAGE_NUMBER <= LARGE_PAGE_NUMBER);
         static_assert(LARGE_PAGE_SHIFT + SMALL_PAGE_SHIFT + SMALL_PAGE_SIZE_SHIFT <= 8 * sizeof(Key));
         if (!std::filesystem::exists(dir_path_)) std::filesystem::create_directory(dir_path_);
-        LoadHeader();
 
-        size_t j = 0;
-
-        for (auto [_, i] : loaded_pages_) {
+        size_t storage_index = 0;
+        
+        for (auto [_, page_index] : LoadHeader()) {
             // TODO: сделать ленивую загрузку
-            page_infos[i].ptr = &(storage_->large_pages_[j++]);
-            LoadPage(i);
+            page_infos_[page_index].storage_index = storage_index;
+            loaded_frequencies_[storage_index]= std::make_pair(page_infos_[page_index].frequency, page_index);
+            LoadPage(storage_index);
+            ++storage_index;
         }
     }
 
@@ -40,27 +35,44 @@ public:
 
         ++time_;
 
-        size_t i = LargePageIndex(key);
-        if (page_infos[i].ptr) {
-            auto node = loaded_pages_.extract({page_infos[i].frequency, i});
-            page_infos[i].frequency += 1;
-            node.value().first = page_infos[i].frequency;
-            loaded_pages_.insert(std::move(node));
-            return page_infos[i].ptr;
+        const size_t page_index = LargePageIndex(key);
+        page_infos_[page_index].frequency += 1;
+        if (auto page_ptr = GetLoadedPage(page_index); page_ptr) {
+            loaded_frequencies_[page_infos_[page_index].storage_index].first += 1;
+            return page_ptr;
         }
-        page_infos[i].frequency += 1;
 
-        if (loaded_pages_.begin()->first + FREQUENCY_THRESHOLD < page_infos[i].frequency) {
-            const size_t worse = loaded_pages_.begin()->second;
-            StorePage(worse);
+        if (worst_frequency_estimation_ + FREQUENCY_THRESHOLD < page_infos_[page_index].frequency) {
+            // update estimation 
 
-            page_infos[i].ptr = page_infos[worse].ptr;
-            page_infos[worse].ptr = nullptr;
-            loaded_pages_.erase(loaded_pages_.begin());
-            LoadPage(i);
-            loaded_pages_.emplace(page_infos[i].frequency, i);
+            worst_frequency_estimation_ = std::numeric_limits<size_t>::max();
+            size_t storage_index = NPOS;
+            for (size_t index = 0; index < LOADED_PAGE_NUMBER; ++index) {
+                if(loaded_frequencies_[index].first < worst_frequency_estimation_) {
+                    worst_frequency_estimation_ = loaded_frequencies_[index].first;
+                    storage_index = index;
+                    // Можно не дублировать частоту, смотреть её по индексу (loaded_frequencies_[storage_index].second)
+                }
+            }
+            assert(worst_frequency_estimation_ != std::numeric_limits<size_t>::max());
+            const size_t worst_page = loaded_frequencies_[storage_index].second;
+            assert(page_infos_[worst_page].storage_index == storage_index);
 
-            return page_infos[i].ptr;
+            if (worst_frequency_estimation_ + FREQUENCY_THRESHOLD < page_infos_[page_index].frequency) {
+                StorePage(storage_index);
+
+                page_infos_[page_index].storage_index = storage_index;
+                page_infos_[worst_page].storage_index = NPOS;
+
+                loaded_frequencies_[storage_index] = 
+                        std::make_pair(page_infos_[page_index].frequency, page_index);
+
+                LoadPage(storage_index);
+
+                // TODO update worst_loaded_page ?
+
+                return &(storage_->large_pages[storage_index]);
+            }
         }
 #if ENABLE_STATISTICS_FLAG
         if (CalledOnUpdate) dropped_keys_++;
@@ -71,10 +83,8 @@ public:
 
     void Store() const {
         StoreHeader();
-        for (size_t i = 0; i < page_infos.size(); ++i) {
-            if (page_infos[i].ptr) {
-                StorePage(i);
-            }
+        for (size_t i = 0; i < LOADED_PAGE_NUMBER; ++i) {
+            StorePage(i);
         }
     }
 
@@ -88,11 +98,15 @@ public:
     }
 
 private:
-    const std::string dir_path_;
-
     struct LargePageInfo {
         size_t frequency{0};  // всегда < 2*period, можно оптимизировать размер
-        LargePage* ptr{nullptr};
+        size_t storage_index{NPOS};
+    };
+
+    struct Storage {
+        explicit Storage(TTinyLFU& tiny_lfu) : large_pages(utils::MakeArray<LOADED_PAGE_NUMBER>(LargePage{tiny_lfu})) {}
+
+        std::array<LargePage, LOADED_PAGE_NUMBER> large_pages;
     };
 
     std::filesystem::path GetFilePath(size_t i) const {
@@ -101,63 +115,75 @@ private:
 
     std::filesystem::path GetHeaderPath() const { return dir_path_ / std::filesystem::path("header.bin"); }
 
-    void LoadHeader() {
+    [[nodiscard]] std::vector<std::pair<size_t, size_t>> LoadHeader() {
         const std::filesystem::path file_path = GetHeaderPath();
-        loaded_pages_.clear();
+
+        std::vector<std::pair<size_t, size_t>> best_pages;
+        best_pages.reserve(LARGE_PAGE_NUMBER);
+
         if (std::filesystem::exists(file_path)) {
             std::ifstream file(file_path, std::ios_base::binary);
-            for (size_t i = 0; i < page_infos.size(); ++i) {
-                utils::BinaryRead(file, &page_infos[i].frequency, sizeof(page_infos[i].frequency));
-                loaded_pages_.emplace(page_infos[i].frequency, i);
+            for (size_t i = 0; i < page_infos_.size(); ++i) {
+                utils::BinaryRead(file, &page_infos_[i].frequency, sizeof(page_infos_[i].frequency));
+                best_pages.emplace_back(page_infos_[i].frequency, i);
             }
-            while (LOADED_PAGE_NUMBER < loaded_pages_.size()) {
-                loaded_pages_.erase(loaded_pages_.begin());
-            }
+            std::sort(best_pages.begin(), best_pages.end(), [](const auto& lhs, const auto& rhs){
+                return lhs.first > rhs.first; 
+            });
+            best_pages.resize(LOADED_PAGE_NUMBER);
         } else {
-            while (loaded_pages_.size() < LOADED_PAGE_NUMBER) {
-                loaded_pages_.emplace(0, loaded_pages_.size());
+            while (best_pages.size() < LOADED_PAGE_NUMBER) {
+                best_pages.emplace_back(0, best_pages.size());
             }
         }
+
+        worst_frequency_estimation_ = best_pages.back().first;
+        assert(best_pages.size() == LOADED_PAGE_NUMBER);
+        return best_pages;
     }
 
     void StoreHeader() const {
         std::ofstream file(GetHeaderPath(), std::ios_base::binary | std::ios_base::trunc);
-        for (const auto& page : page_infos) {
+        for (const auto& page : page_infos_) {
             utils::BinaryWrite(file, &page.frequency, sizeof(page.frequency));
         }
     }
 
-    void LoadPage(size_t i) {
-        assert(page_infos[i].ptr != nullptr);
+    LargePage* GetLoadedPage(size_t page_index) {
+        const size_t storage_index = page_infos_[page_index].storage_index;
+        return storage_index != NPOS ? &(storage_->large_pages[storage_index]) : nullptr;
+    }
+
+    void LoadPage(size_t storage_index) {
+        assert(storage_index != NPOS);
 #if ENABLE_STATISTICS_FLAG
         large_page_loads_++;
 #endif
 
-        const std::filesystem::path file_path = GetFilePath(i);
+        const std::filesystem::path file_path = GetFilePath(loaded_frequencies_[storage_index].second);
         if (std::filesystem::exists(file_path)) {
             std::ifstream file(file_path, std::ios_base::binary);
-            (*page_infos[i].ptr).Load(file);  // TODO: убрать копирование, при большом размере stack-overflow
+            storage_->large_pages[storage_index].Load(file);  // TODO: убрать копирование, при большом размере stack-overflow
         } else {
-            (*page_infos[i].ptr).Clear();
+            storage_->large_pages[storage_index].Clear();
         }
     }
 
-    void StorePage(size_t i) const {
-        assert(page_infos[i].ptr != nullptr);
+    void StorePage(size_t storage_index) const {
+        assert(storage_index != NPOS);
 
-        std::ofstream file(GetFilePath(i), std::ios_base::binary | std::ios_base::trunc);
+        std::ofstream file(GetFilePath(loaded_frequencies_[storage_index].second), std::ios_base::binary | std::ios_base::trunc);
 
-        page_infos[i].ptr->Store(file);
+        storage_->large_pages[storage_index].Store(file);
     }
 
     void DivFrequency() {  // делит все частоты на 2
-        // TODO: эту операцию можно сделать отложенной и избавиться от loaded_pages_, с помощью дерева отрезков
-        loaded_pages_.clear();
-        for (size_t i = 0; i < page_infos.size(); ++i) {
-            page_infos[i].frequency >>= 1;
-            if (page_infos[i].ptr) {
-                loaded_pages_.emplace(page_infos[i].frequency, i);
-            }
+        for (size_t i = 0; i < page_infos_.size(); ++i) {
+            page_infos_[i].frequency >>= 1;
+        }
+        worst_frequency_estimation_ >>= 1;
+        for (size_t i = 0; i < LOADED_PAGE_NUMBER; ++i) {
+            loaded_frequencies_[i].first >>= 1;
         }
     }
 
@@ -169,13 +195,13 @@ private:
 
         uint64_t evictions_high_freq = 0;
         for (size_t i = 0; i < LOADED_PAGE_NUMBER; ++i) {
-            evictions_high_freq += storage_->large_pages_[i].GetNumEvictionsHighFreq();
+            evictions_high_freq += storage_->large_pages[i].GetNumEvictionsHighFreq();
         }
         std::cout << "Кол-во вытесненных ключей из страницы (при переполнении): " << evictions_high_freq << std::endl;
 
         uint64_t dropped_keys_low_freq = 0;
         for (size_t i = 0; i < LOADED_PAGE_NUMBER; ++i) {
-            dropped_keys_low_freq += storage_->large_pages_[i].GetNumDroppedKeysLowFreq();
+            dropped_keys_low_freq += storage_->large_pages[i].GetNumDroppedKeysLowFreq();
         }
         std::cout << "Кол-во отброшенных ключей при Update (из-за низкой частоты): " << dropped_keys_low_freq << std::endl;
 
@@ -183,7 +209,7 @@ private:
         const size_t SMALL_PAGE_NUM_OVERALL = LOADED_PAGE_NUMBER * SMALL_PAGE_NUMBER;
         fill_factors.reserve(SMALL_PAGE_NUM_OVERALL);
         for (size_t i = 0; i < LOADED_PAGE_NUMBER; ++i) {
-            auto factors = storage_->large_pages_[i].GetSmallPagesFillFactors();
+            auto factors = storage_->large_pages[i].GetSmallPagesFillFactors();
             fill_factors.insert(fill_factors.end(), factors.begin(), factors.end());
         }
 
@@ -202,9 +228,13 @@ private:
 #endif
     }
 
+    static constexpr size_t NPOS = std::numeric_limits<size_t>::max();
+
+    const std::string dir_path_;
     std::unique_ptr<Storage> storage_;
-    std::array<LargePageInfo, LARGE_PAGE_NUMBER> page_infos;
-    std::set<std::pair<size_t, size_t>> loaded_pages_;  // <частота, индекс большой страницы>
+    std::array<LargePageInfo, LARGE_PAGE_NUMBER> page_infos_;
+    size_t worst_frequency_estimation_; // частота загруженных страниц не меньше этой оценки
+    std::array<std::pair<size_t, size_t>, LOADED_PAGE_NUMBER> loaded_frequencies_; // <частота, индекс page_infos_> в дубликат частот страниц для быстрого обновления worst_frequency_estimation_
     size_t time_{0};
 };
 
