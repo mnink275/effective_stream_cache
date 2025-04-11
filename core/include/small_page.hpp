@@ -107,8 +107,9 @@ public:
         utils::LoadArrayFromBuffer(buffer, records_);
         std::advance(buffer, records_.size() * sizeof(records_[0]));
         utils::LoadArrayFromBuffer(buffer, payload_);
-        std::advance(buffer, sizeof(size_t));
+        std::advance(buffer, payload_.size() * sizeof(payload_[0]));
         utils::BinaryRead(buffer, &last_free_slot_, sizeof(last_free_slot_));
+        std::advance(buffer, sizeof(size_t));
     }
 
     void Store(char* buffer) const noexcept {
@@ -119,8 +120,9 @@ public:
         utils::StoreArrayToBuffer(buffer, records_);
         std::advance(buffer, records_.size() * sizeof(records_[0]));
         utils::StoreArrayToBuffer(buffer, payload_);
-        std::advance(buffer, sizeof(size_t));
+        std::advance(buffer, payload_.size() * sizeof(payload_[0]));
         utils::BinaryWrite(buffer, &last_free_slot_, sizeof(last_free_slot_));
+        std::advance(buffer, sizeof(size_t));
     }
 
     bool Get(Key key, uint32_t now) noexcept {
