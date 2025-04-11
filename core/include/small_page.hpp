@@ -18,10 +18,6 @@ inline size_t SmallPageIndex(Key key) noexcept {
 //     return key >> (8ull * sizeof(Key) - LARGE_PAGE_SHIFT - SMALL_PAGE_SHIFT);
 // }
 
-struct Payload {
-    uint32_t expiration_time;
-};
-
 inline size_t FindKeyIdxSIMD8(Key key, const std::array<Key, SMALL_PAGE_SIZE>& records) noexcept {
     const auto x = _mm256_set1_epi32(key);
     // const auto x = _mm256_broadcastd_epi32(_mm_loadu_si32(&key));
@@ -44,7 +40,7 @@ inline size_t FindKeyIdxSIMD8(Key key, const std::array<Key, SMALL_PAGE_SIZE>& r
 
 inline size_t FindKeyIdxSIMD16(Key key, const std::array<Key, SMALL_PAGE_SIZE>& records) noexcept {
     const auto x = _mm256_set1_epi32(key);
-    size_t N = records.size();
+    const auto N = records.size();
     assert(N % 8 == 0);
 
     assert(reinterpret_cast<std::uintptr_t>(records.data()) % 32 == 0);
@@ -57,14 +53,14 @@ inline size_t FindKeyIdxSIMD16(Key key, const std::array<Key, SMALL_PAGE_SIZE>& 
         const auto m2 = _mm256_cmpeq_epi32(x, y2);
         const auto m = _mm256_or_si256(m1, m2);
         if (!_mm256_testz_si256(m, m)) {
-            const auto mask =
+            const auto mask = 
                 (_mm256_movemask_ps(_mm256_castsi256_ps(m2)) << 8)
                 + _mm256_movemask_ps(_mm256_castsi256_ps(m1));
             return block_id + __builtin_ctz(mask);
         }
     }
 
-    return records.size();
+    return N;
 }
 
 inline size_t FindKeyIdx(Key key, const std::array<Key, SMALL_PAGE_SIZE>& records) noexcept {
@@ -74,6 +70,10 @@ inline size_t FindKeyIdx(Key key, const std::array<Key, SMALL_PAGE_SIZE>& record
 
 class SmallPageAdvanced {
 public:
+    struct Payload {
+        uint32_t expiration_time;
+    };
+
     explicit SmallPageAdvanced(TTinyLFU& tiny_lfu) noexcept : tiny_lfu_(tiny_lfu) {
         Clear();
     }
@@ -96,6 +96,7 @@ public:
     void Clear() noexcept {
         records_.fill(INVALID_HASH);
         payload_.fill(Payload{0});
+        last_free_slot_ = 0;
     }
 
     void Load(const char* buffer) noexcept {
@@ -106,6 +107,8 @@ public:
         utils::LoadArrayFromBuffer(buffer, records_);
         std::advance(buffer, records_.size() * sizeof(records_[0]));
         utils::LoadArrayFromBuffer(buffer, payload_);
+        std::advance(buffer, sizeof(size_t));
+        utils::BinaryRead(buffer, &last_free_slot_, sizeof(last_free_slot_));
     }
 
     void Store(char* buffer) const noexcept {
@@ -116,6 +119,8 @@ public:
         utils::StoreArrayToBuffer(buffer, records_);
         std::advance(buffer, records_.size() * sizeof(records_[0]));
         utils::StoreArrayToBuffer(buffer, payload_);
+        std::advance(buffer, sizeof(size_t));
+        utils::BinaryWrite(buffer, &last_free_slot_, sizeof(last_free_slot_));
     }
 
     bool Get(Key key, uint32_t now) noexcept {
@@ -141,15 +146,19 @@ public:
 
     bool Update(Key key, uint32_t expiration_time) noexcept {
         if (records_.back() == INVALID_HASH) {
-            records_.back() = key;
-            payload_.back().expiration_time = expiration_time;
+            assert(last_free_slot_ < records_.size());
+            assert(records_[last_free_slot_] == INVALID_HASH);
+
+            records_[last_free_slot_] = key;
+            payload_[last_free_slot_].expiration_time = expiration_time;
             tiny_lfu_.Add(key);
 
 #if USE_BF_FLAG
             bloom_filter_.Add(key);
 #endif
 
-            Raise(records_.size() - 1);
+            Raise(last_free_slot_);
+            last_free_slot_++;
             return true;
         }
 
@@ -197,6 +206,8 @@ public:
             std::swap(payload_[i], payload_[i + 1]);
             ++i;
         }
+        last_free_slot_--;
+        assert(last_free_slot_ == i);
     }
 
     bool CheckEvictedByTTL(size_t idx, uint32_t now) {
@@ -218,14 +229,17 @@ public:
         return false;
     }
 
- public:
-  static constexpr size_t kDataSizeInBytes = SMALL_PAGE_SIZE * (sizeof(Key) + sizeof(Payload));
-
  private:
     alignas(32) std::array<Key, SMALL_PAGE_SIZE> records_{};
     std::array<Payload, SMALL_PAGE_SIZE> payload_{};
 
+    uint16_t last_free_slot_{0};
+    static_assert((1ull << sizeof(last_free_slot_) * 8) >= SMALL_PAGE_SIZE);
+
     TTinyLFU& tiny_lfu_;
+
+ public:
+  static constexpr size_t kDataSizeInBytes = SMALL_PAGE_SIZE * (sizeof(Key) + sizeof(Payload) + sizeof(last_free_slot_));
 
 #if USE_BF_FLAG
     BloomFilter<Key, SMALL_PAGE_SIZE * 6> bloom_filter_{
