@@ -16,7 +16,7 @@ cmake-debug cmake-release: cmake-%: build_%/Makefile
 .PHONY: build-debug build-release
 build-debug build-release: build-%: cmake-%
 	@cmake --build build_$* -j $(shell nproc)
-	@rm -rf ./data/*
+	@make clean-data
 
 # Run
 .PHONY: run-debug run-release

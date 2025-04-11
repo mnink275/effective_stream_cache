@@ -134,8 +134,7 @@ int main() {
         << "(" << LOADED_PAGE_NUMBER << " loaded)"
     << '\n';
 
-    if (USE_TINY_LFU_FLAG) std::cout << "TinyLFU " << "(" << TLFU_SIZE << ", " << SAMPLE_SIZE << ")\n";
-    else std::cout << "Keys Sample Size: " << SAMPLE_SIZE << '\n';
+    std::cout << "TinyLFU " << "(" << TLFU_SIZE << ", " << SAMPLE_SIZE << ")\n";
     if (USE_LRU) std::cout << "LRU " << (USE_LRU ? LRU_SIZE : 0) << std::endl;
     if (USE_BF) std::cout << "Bloom filter " << (USE_BF ? "ON" : "OFF") << std::endl;
     if (USE_SIMD) std::cout << "SIMD " << (USE_SIMD ? "ON" : "OFF") << std::endl;

@@ -5,6 +5,7 @@ add_executable(
         tiny_lfu_cms_benchmark.cpp
         large_page_benchmark.cpp
         bloom_filter_benchmark.cpp
+        small_page_find_benchmark.cpp
 )
 
 target_include_directories(

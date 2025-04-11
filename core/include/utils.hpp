@@ -52,7 +52,7 @@ inline void LoadArrayFromBuffer(const char* buffer, std::array<T, N>& data) noex
 }
 
 inline uint32_t Now() {
-    static constexpr uint32_t kTimeSinceEpoch = 1743161207; // ~2025-03-28
+    static const auto kTimeSinceEpoch = std::chrono::steady_clock::now().time_since_epoch().count();
     const auto seconds_since_epoch = std::chrono::steady_clock::now().time_since_epoch().count();
     assert(seconds_since_epoch >= 0);
     assert(seconds_since_epoch > kTimeSinceEpoch);

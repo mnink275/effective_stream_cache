@@ -24,8 +24,6 @@ inline constexpr size_t SAMPLE_SIZE = TLFU_SIZE * 10;
 inline constexpr bool USE_DOOR_KEEPER = false;
 using TTinyLFU = TinyLFU<Key, SAMPLE_SIZE, TLFU_SIZE, USE_DOOR_KEEPER>;
 
-#define USE_TINY_LFU_FLAG true // use Advanced version with TinyLFU
-#define USE_ENCHANCED false // use Simple version with frequency counters 4-bit sized
 #define USE_BF_FLAG false
 #define USE_SIMD_FLAG true
 

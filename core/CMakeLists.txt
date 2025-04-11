@@ -10,8 +10,6 @@ set(HEADERS
     ${INCLUDE_PATH}/large_page_provider.hpp
     ${INCLUDE_PATH}/large_page.hpp
     ${INCLUDE_PATH}/lru.hpp
-    ${INCLUDE_PATH}/small_page_advanced.hpp
-    ${INCLUDE_PATH}/small_page_basic.hpp
     ${INCLUDE_PATH}/small_page.hpp
     ${INCLUDE_PATH}/tiny_lfu_cms.hpp
     ${INCLUDE_PATH}/utils.hpp
