@@ -241,7 +241,10 @@ public:
     TTinyLFU& tiny_lfu_;
 
  public:
-  static constexpr size_t kDataSizeInBytes = SMALL_PAGE_SIZE * (sizeof(Key) + sizeof(Payload) + sizeof(last_free_slot_));
+  static constexpr size_t kDataSizeInBytes =
+    SMALL_PAGE_SIZE * sizeof(Key)
+    + SMALL_PAGE_SIZE * sizeof(Payload)
+    + sizeof(last_free_slot_);
 
 #if USE_BF_FLAG
     BloomFilter<Key, SMALL_PAGE_SIZE * 6> bloom_filter_{
