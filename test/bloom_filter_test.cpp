@@ -2,8 +2,8 @@
 
 #include <bloom_filter.hpp>
 
-#include <random>
 #include <fstream>
+#include <random>
 
 namespace cache::test {
 
@@ -36,7 +36,7 @@ TEST(BloomFilter, FillAndClear) {
     bf.Add(i);
     EXPECT_TRUE(bf.Test(i));
   }
-  
+
   bf.Clear();
 
   for (size_t i = 0; i < num_keys; ++i) {

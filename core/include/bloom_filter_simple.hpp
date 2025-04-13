@@ -1,9 +1,9 @@
 #pragma once
 
 #include <bitset>
-#include <vector>
-#include <fstream>
 #include <cassert>
+#include <fstream>
+#include <vector>
 
 #include "utils.hpp"
 
@@ -12,11 +12,11 @@ namespace cache {
 template <class T, size_t kSize>
 class BloomFilter {
  public:
-  using HashFunc = size_t(*)(T key);
+  using HashFunc = size_t (*)(T key);
 
-  template <class ...Funcs>
+  template <class... Funcs>
   explicit BloomFilter(Funcs&&... funcs)
-    : hash_funcs_({funcs...}), bloom_filter_() {}
+      : hash_funcs_({funcs...}), bloom_filter_() {}
 
   void Add(T key) {
     for (const auto& hash_func : hash_funcs_) {
@@ -32,9 +32,7 @@ class BloomFilter {
     return true;
   }
 
-  void Clear() {
-    bloom_filter_.reset();
-  }
+  void Clear() { bloom_filter_.reset(); }
 
   [[nodiscard]]
   double LoadFactor() const {
@@ -58,20 +56,19 @@ class BloomFilter {
 
  private:
   // https://stackoverflow.com/a/7463972
-  template<size_t N>
+  template <size_t N>
   std::vector<unsigned char> bitset_to_bytes(const std::bitset<N>& bs) const {
     std::vector<unsigned char> result((N + 7) >> 3);
-    for (size_t j = 0; j < N; ++j)
-        result[j >> 3] |= (bs[j] << (j & 7));
+    for (size_t j = 0; j < N; ++j) result[j >> 3] |= (bs[j] << (j & 7));
     return result;
   }
 
-  template<size_t N>
-  std::bitset<N> bitset_from_bytes(const std::vector<unsigned char>& buf) const {
+  template <size_t N>
+  std::bitset<N> bitset_from_bytes(
+      const std::vector<unsigned char>& buf) const {
     assert(buf.size() == ((N + 7) >> 3));
     std::bitset<N> result;
-    for (size_t j = 0; j < N; ++j)
-        result[j] = ((buf[j >> 3] >> (j & 7)) & 1);
+    for (size_t j = 0; j < N; ++j) result[j] = ((buf[j >> 3] >> (j & 7)) & 1);
     return result;
   }
 

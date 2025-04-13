@@ -6,8 +6,10 @@ namespace cache::test {
 
 TEST(TinyLFUBasedOnCMS, Basics) {
   const size_t sample_size = 4;
-  TinyLFU<uint32_t, sample_size, /*NumCounters=*/4, /*UseDoorKeeper=*/false> tiny_lfu;
-  TinyLFU<uint32_t, sample_size, /*NumCounters=*/4, /*UseDoorKeeper=*/true> tiny_lfu_dk;
+  TinyLFU<uint32_t, sample_size, /*NumCounters=*/4, /*UseDoorKeeper=*/false>
+      tiny_lfu;
+  TinyLFU<uint32_t, sample_size, /*NumCounters=*/4, /*UseDoorKeeper=*/true>
+      tiny_lfu_dk;
 
   for (size_t i = 1; i < sample_size; ++i) {
     tiny_lfu.Add(1);
@@ -28,7 +30,8 @@ TEST(TinyLFUBasedOnCMS, Basics) {
 
 TEST(TinyLFUBasedOnCMS, ResetAtEvenCounter) {
   const size_t sample_size = 5;
-  TinyLFU<uint32_t, sample_size, /*NumCounters=*/4, /*UseDoorKeeper=*/true> tiny_lfu_dk;
+  TinyLFU<uint32_t, sample_size, /*NumCounters=*/4, /*UseDoorKeeper=*/true>
+      tiny_lfu_dk;
 
   for (size_t i = 1; i < sample_size; ++i) {
     tiny_lfu_dk.Add(1);
@@ -43,8 +46,10 @@ TEST(TinyLFUBasedOnCMS, ResetAtEvenCounter) {
 
 TEST(TinyLFUBasedOnCMS, Reset) {
   const size_t sample_size = 1000;
-  TinyLFU<uint32_t, sample_size, /*NumCounters=*/sample_size / 10, /*UseDoorKeeper=*/false> tiny_lfu;
-  
+  TinyLFU<uint32_t, sample_size, /*NumCounters=*/sample_size / 10,
+          /*UseDoorKeeper=*/false>
+      tiny_lfu;
+
   const auto four_bit_counter_limit = 15;
   for (size_t i = 1; i <= four_bit_counter_limit; ++i) {
     tiny_lfu.Add(5);
@@ -62,7 +67,8 @@ TEST(TinyLFUBasedOnCMS, Reset) {
 }
 
 TEST(TinyLFUBasedOnCMS, Clear) {
-  TinyLFU<uint32_t, /*SampleSize=*/4, /*NumCounters=*/4, /*UseDoorKeeper=*/true> tiny_lfu;
+  TinyLFU<uint32_t, /*SampleSize=*/4, /*NumCounters=*/4, /*UseDoorKeeper=*/true>
+      tiny_lfu;
 
   tiny_lfu.Add(1);
   tiny_lfu.Add(5);
@@ -76,7 +82,8 @@ TEST(TinyLFUBasedOnCMS, Clear) {
 
 TEST(TinyLFUBasedOnCMS, SerializeDeserialize) {
   const size_t sample_size = 1000;
-  using TLFU = TinyLFU<uint32_t, /*SampleSize=*/sample_size, /*NumCounters=*/32, /*UseDoorKeeper=*/true>;
+  using TLFU = TinyLFU<uint32_t, /*SampleSize=*/sample_size, /*NumCounters=*/32,
+                       /*UseDoorKeeper=*/true>;
   TLFU tiny_lfu;
 
   std::random_device rd;

@@ -58,10 +58,10 @@ TEST(LRU, EvictionNoTTL) {
 
   std::optional<uint32_t> evicted{};
   EXPECT_TRUE(evicted = lru.Update(4, far_future));
-  EXPECT_EQ(*evicted, 3); // 3 is evicted
+  EXPECT_EQ(*evicted, 3);  // 3 is evicted
   EXPECT_FALSE(lru.Get(3, now));
 
-  EXPECT_TRUE(lru.Get(1, now)); // rest are still there
+  EXPECT_TRUE(lru.Get(1, now));  // rest are still there
   EXPECT_TRUE(lru.Get(2, now));
 }
 

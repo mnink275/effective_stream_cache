@@ -42,6 +42,8 @@ clean-data:
 format:
 	@find core -name '*pp' -type f | xargs clang-format -i
 	@find test -name '*pp' -type f | xargs clang-format -i
+	@find benchmark -name '*pp' -type f | xargs clang-format -i
+	@clang-format -i main.cpp
 
 # Run tests in debug
 .PHONY: tests

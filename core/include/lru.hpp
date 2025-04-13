@@ -13,7 +13,8 @@
 
 #include <optional>
 
-// Based on: https://github.com/apolukhin/apolukhin.github.io/blob/master/presentations/C%2B%2B%20Faster.cpp
+// Based on:
+// https://github.com/apolukhin/apolukhin.github.io/blob/master/presentations/C%2B%2B%20Faster.cpp
 
 namespace cache {
 
@@ -25,15 +26,16 @@ using LinkMode = boost::intrusive::link_mode<
 #else
     boost::intrusive::safe_link
 #endif
->;
+    >;
 
 using ListBaseHook = boost::intrusive::list_base_hook<LinkMode>;
-using UnorderedSetBaseHook = boost::intrusive::unordered_set_base_hook<LinkMode>;
+using UnorderedSetBaseHook =
+    boost::intrusive::unordered_set_base_hook<LinkMode>;
 
 template <class Key>
 struct Node final : public ListBaseHook, public UnorderedSetBaseHook {
   explicit Node(Key key, uint32_t expiration_time)
-    : key(std::move(key)), expiration_time(expiration_time) {}
+      : key(std::move(key)), expiration_time(expiration_time) {}
 
   Key key;
   uint32_t expiration_time;
@@ -99,7 +101,8 @@ class LRU final {
 
     bool should_evict = false;
     if constexpr (TTL_EVICTION_PROB > 0.0) {
-      static std::mt19937 gen(BERNOULLI_SEED ? BERNOULLI_SEED : std::random_device{}());
+      static std::mt19937 gen(BERNOULLI_SEED ? BERNOULLI_SEED
+                                             : std::random_device{}());
       static std::bernoulli_distribution dist(TTL_EVICTION_PROB);
       should_evict = dist(gen);
     } else {
@@ -117,9 +120,9 @@ class LRU final {
 
  private:
   using LruNode = details::Node<Key>;
-  using List = boost::intrusive::list<
-      LruNode,
-      boost::intrusive::constant_time_size<false>>;
+  using List =
+      boost::intrusive::list<LruNode,
+                             boost::intrusive::constant_time_size<false>>;
 
   std::unique_ptr<LruNode> ExtractNode(typename List::iterator it) noexcept {
     std::unique_ptr<LruNode> ret(&*it);

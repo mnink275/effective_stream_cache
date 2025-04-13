@@ -51,7 +51,8 @@ TEST(LargePage, SerializeDeserialize) {
   tiny_lfu.Clear();
   auto large_page_copy = std::make_unique<LargePage>(tiny_lfu);
   for (auto key : keys) {
-    if (!large_page_copy->Get(key, now)) large_page_copy->Update(key, far_future);
+    if (!large_page_copy->Get(key, now))
+      large_page_copy->Update(key, far_future);
   }
 
   {

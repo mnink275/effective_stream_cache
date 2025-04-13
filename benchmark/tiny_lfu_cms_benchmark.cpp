@@ -2,22 +2,18 @@
 
 #include <tiny_lfu_cms.hpp>
 
-#include <random>
 #include <cstdint>
+#include <random>
 
 static constexpr size_t kNumCounters = 1024;
-using TLFU =cache::TinyLFU<
-      uint32_t,
-      /*SampleSize=*/10 * kNumCounters,
-      /*NumCounters=*/kNumCounters,
-      /*UseDoorKeeper=*/false
->;
-using TLFUDoorKeeper =cache::TinyLFU<
-      uint32_t,
-      /*SampleSize=*/10 * kNumCounters,
-      /*NumCounters=*/kNumCounters,
-      /*UseDoorKeeper=*/true
->;
+using TLFU = cache::TinyLFU<uint32_t,
+                            /*SampleSize=*/10 * kNumCounters,
+                            /*NumCounters=*/kNumCounters,
+                            /*UseDoorKeeper=*/false>;
+using TLFUDoorKeeper = cache::TinyLFU<uint32_t,
+                                      /*SampleSize=*/10 * kNumCounters,
+                                      /*NumCounters=*/kNumCounters,
+                                      /*UseDoorKeeper=*/true>;
 
 static void TLFU_Add(benchmark::State& state) {
   TLFU tiny_lfu;

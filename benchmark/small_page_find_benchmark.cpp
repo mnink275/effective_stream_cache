@@ -2,8 +2,8 @@
 
 #include <small_page.hpp>
 
-#include <random>
 #include <iostream>
+#include <random>
 #include <unordered_set>
 
 namespace {
@@ -13,7 +13,7 @@ struct Records {
 };
 
 std::pair<Records, uint32_t> getInitRecordsAndKeyToBeFind() {
-  static auto data_and_key = [&](){
+  static auto data_and_key = [&]() {
     const auto kSeed = std::random_device{}();
     std::mt19937 gen{kSeed};
     std::uniform_int_distribution<uint32_t> dist(0, cache::INVALID_HASH - 1);

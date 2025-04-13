@@ -2,8 +2,8 @@
 
 #include <bloom_filter_simple.hpp>
 
-#include <random>
 #include <fstream>
+#include <random>
 
 namespace cache::test {
 
@@ -11,9 +11,8 @@ using Key = uint32_t;
 
 TEST(BloomFilterSimple, AddAndTest) {
   BloomFilter<Key, /*kSize=*/1000> bf{
-    [](Key key) { return static_cast<size_t>(key); },
-    [](Key key) { return static_cast<size_t>(2 * key); }
-  };
+      [](Key key) { return static_cast<size_t>(key); },
+      [](Key key) { return static_cast<size_t>(2 * key); }};
 
   EXPECT_FALSE(bf.Test(1));
   bf.Add(1);
@@ -26,23 +25,21 @@ TEST(BloomFilterSimple, AddAndTest) {
 
 TEST(BloomFilterSimple, AddAndTestCollision) {
   BloomFilter<Key, /*kSize=*/1000> bf(
-    [](Key key) { return static_cast<size_t>(key); },
-    [](Key key) { return static_cast<size_t>(2 * key); }
-  );
+      [](Key key) { return static_cast<size_t>(key); },
+      [](Key key) { return static_cast<size_t>(2 * key); });
 
   EXPECT_FALSE(bf.Test(1));
   EXPECT_FALSE(bf.Test(4));
-  bf.Add(1); // marks cells 1 and 2
-  bf.Add(4); // marks cells 4 and 8
+  bf.Add(1);  // marks cells 1 and 2
+  bf.Add(4);  // marks cells 4 and 8
 
-  EXPECT_TRUE(bf.Test(2)); // collision at 2 and 4
+  EXPECT_TRUE(bf.Test(2));  // collision at 2 and 4
 }
 
 TEST(BloomFilterSimple, LoadFactor) {
   BloomFilter<Key, /*kSize=*/10> bf(
-    [](Key key) { return static_cast<size_t>(key); },
-    [](Key key) { return static_cast<size_t>(key + 5); }
-  );
+      [](Key key) { return static_cast<size_t>(key); },
+      [](Key key) { return static_cast<size_t>(key + 5); });
 
   EXPECT_EQ(bf.LoadFactor(), 0.0);
 
@@ -56,8 +53,7 @@ TEST(BloomFilterSimple, LoadFactor) {
 
 TEST(BloomFilterSimple, FillAndClear) {
   BloomFilter<Key, /*kSize=*/10> bf(
-    [](Key key) { return static_cast<size_t>(key); }
-  );
+      [](Key key) { return static_cast<size_t>(key); });
 
   EXPECT_EQ(bf.LoadFactor(), 0.0);
 
@@ -81,8 +77,7 @@ TEST(BloomFilterSimple, FillAndClear) {
 
 TEST(BloomFilterSimple, Mod) {
   BloomFilter<Key, /*kSize=*/10> bf(
-    [](Key key) { return static_cast<size_t>(key); }
-  );
+      [](Key key) { return static_cast<size_t>(key); });
 
   EXPECT_FALSE(bf.Test(0));
   bf.Add(420);
@@ -95,28 +90,28 @@ TEST(BloomFilterSimple, Mod) {
 
 TEST(BloomFilterSimple, SerializeDeserialize) {
   BloomFilter<Key, /*kSize=*/1000> bf(
-    [](Key key) { return static_cast<size_t>(key) * 2654435761 % 2^32; },
-    [](Key key) {
+      [](Key key) { return static_cast<size_t>(key) * 2654435761 % 2 ^ 32; },
+      [](Key key) {
         key += ~(key << 15);
         key ^= (key >> 10);
         key += (key << 3);
         key ^= (key >> 6);
         key += ~(key << 11);
         key ^= (key >> 16);
-        return static_cast<size_t>(key); }
-  );
+        return static_cast<size_t>(key);
+      });
 
   BloomFilter<Key, /*kSize=*/1000> bf_copy(
-    [](Key key) { return static_cast<size_t>(key) * 2654435761 % 2^32; },
-    [](Key key) {
+      [](Key key) { return static_cast<size_t>(key) * 2654435761 % 2 ^ 32; },
+      [](Key key) {
         key += ~(key << 15);
         key ^= (key >> 10);
         key += (key << 3);
         key ^= (key >> 6);
         key += ~(key << 11);
         key ^= (key >> 16);
-        return static_cast<size_t>(key); }
-  );
+        return static_cast<size_t>(key);
+      });
 
   std::random_device rd;
   const auto seed = rd();

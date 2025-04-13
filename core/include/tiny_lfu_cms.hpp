@@ -114,9 +114,8 @@ class TinyLFU<T, SampleSize, NumCounters, true> final {
   }
 
   bool operator==(const TinyLFU& other) const noexcept {
-    return sketch_ == other.sketch_
-      && door_keeper_ == other.door_keeper_
-      && global_counter_ == other.global_counter_;
+    return sketch_ == other.sketch_ && door_keeper_ == other.door_keeper_ &&
+           global_counter_ == other.global_counter_;
   }
 
  private:

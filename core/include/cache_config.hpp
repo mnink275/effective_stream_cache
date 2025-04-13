@@ -1,8 +1,8 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <cstddef>
 
 #include <tiny_lfu_cms.hpp>
 
@@ -67,14 +67,17 @@ inline constexpr bool ENABLE_STATISTICS = false;
 inline const size_t LARGE_PAGE_NUMBER = 1 << LARGE_PAGE_SHIFT;
 inline const size_t SMALL_PAGE_NUMBER = (1 << SMALL_PAGE_SHIFT) + 1;
 
-inline const size_t SMALL_PAGE_SIZE = (1 << SMALL_PAGE_SIZE_SHIFT);  // количество записей на странице
+inline const size_t SMALL_PAGE_SIZE =
+    (1 << SMALL_PAGE_SIZE_SHIFT);  // количество записей на странице
 
 inline const size_t LOADED_PAGE_NUMBER = 20;
 
-inline const size_t LARGE_PAGE_PERIOD = 2'000;  // время, через которое частоты больших страниц /= 2
+inline const size_t LARGE_PAGE_PERIOD =
+    2'000;  // время, через которое частоты больших страниц /= 2
 
 inline const size_t FREQUENCY_THRESHOLD = 370;
 
-inline const size_t CACHE_SIZE = LOADED_PAGE_NUMBER * SMALL_PAGE_NUMBER * SMALL_PAGE_SIZE;
+inline const size_t CACHE_SIZE =
+    LOADED_PAGE_NUMBER * SMALL_PAGE_NUMBER * SMALL_PAGE_SIZE;
 
 }  // namespace cache
