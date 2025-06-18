@@ -25,3 +25,5 @@ add_library(
 target_include_directories(
     ${PROJECT_NAME}_objs PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include
 )
+
+set_target_properties(${PROJECT_NAME}_objs PROPERTIES LINKER_LANGUAGE CXX)

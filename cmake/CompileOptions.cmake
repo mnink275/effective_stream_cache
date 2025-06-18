@@ -1,4 +1,4 @@
-set(CompilerFlags -Wall -Wextra -Wpedantic -mavx2)
+set(CompilerFlags -Wall -Wextra -Wpedantic -Werror -Wstrict-aliasing -mavx2)
 if (CMAKE_BUILD_TYPE MATCHES "Debug")
     list(APPEND CompilerFlags -g -O0)
 elseif (CMAKE_BUILD_TYPE MATCHES "Release")

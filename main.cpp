@@ -4,6 +4,7 @@
 #include <iostream>
 
 #include <cache.hpp>
+#include "core/include/utils.hpp"
 
 using namespace std::chrono_literals;
 
@@ -64,17 +65,19 @@ struct BenchmarkResult {
   int64_t RSS{0};
 
   void Print() const {
+    std::cout << "Total count: " << totalCount << std::endl;
+    std::cout << "Hit count: " << hitCount << std::endl;
     std::cout << "RSS: " << RSS / 1024.0 << " MB" << std::endl;
     std::cout << "Hit ratio: "
               << (100 * static_cast<double>(hitCount) / totalCount) << " %"
               << std::endl;
 
-    const auto getAverageTime =
+    const auto getEstimatedTime =
         std::chrono::duration_cast<std::chrono::nanoseconds>(benchmarkTime -
                                                              updatesTime)
             .count() /
         totalCount;
-    std::cout << "Get average time: " << getAverageTime << std::endl;
+    std::cout << "Get estimated time: " << getEstimatedTime << std::endl;
 
     const auto updateAverageTime =
         std::chrono::duration_cast<std::chrono::nanoseconds>(updatesTime)
@@ -112,7 +115,8 @@ BenchmarkResult RunBenchmark(const auto& keys, TCache& cache) {
   const auto now = utils::Now();
   const auto far_future = now + 3600;
   for (auto key : keys) {
-    if (cache.Get(key, now)) {
+    const auto found = cache.Get(key, now);
+    if (found) {
       hitCount++;
     } else {
       auto start_update = std::chrono::high_resolution_clock::now();
@@ -146,6 +150,9 @@ int main() {
   if (USE_BF)
     std::cout << "Bloom filter " << (USE_BF ? "ON" : "OFF") << std::endl;
   if (USE_SIMD) std::cout << "SIMD " << (USE_SIMD ? "ON" : "OFF") << std::endl;
+
+  std::cout << "LARGE_PAGE_PERIOD: " << LARGE_PAGE_PERIOD << '\n';
+  std::cout << "FREQUENCY_THRESHOLD: " << FREQUENCY_THRESHOLD << '\n';
 #endif
 
   const size_t kBatchSize = 700'000'000;
@@ -159,7 +166,8 @@ int main() {
   // std::string filename = "dataset/n_10M_578K.txt";
   // std::string filename = "dataset/f_640M_28M.txt";
   // std::string filename = "dataset/WebSearch2.txt";
-  std::string filename = "dataset/Financial1.txt";
+  // std::string filename = "dataset/ipv4.txt";
+  std::string filename = "dataset/P14.txt";
 
   std::ifstream input(filename);
   if (!input.is_open()) {
@@ -174,9 +182,7 @@ int main() {
 #else
   // using TCache = LRU;
   using TCache = LRU<uint32_t>;
-  // const size_t CACHE_SIZE = 131584;
   // const size_t CACHE_SIZE = 524288;
-  const size_t CACHE_SIZE = 5'000'000;
   TCache cache{CACHE_SIZE};
 #endif
 

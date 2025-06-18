@@ -1,7 +1,12 @@
 #pragma once
 
+#include <algorithm>
 #include <filesystem>
-#include <set>
+
+#if ENABLE_STATISTICS_FLAG
+#include <iostream>
+#include <iomanip>
+#endif
 
 #include <cache_config.hpp>
 #include <large_page.hpp>
@@ -42,7 +47,7 @@ class LargePageProvider {
 
     const size_t page_index = LargePageIndex(key);
     page_infos_[page_index].frequency += 1;
-    if (auto page_ptr = GetLoadedPage(page_index); page_ptr) {
+    if (auto* page_ptr = GetLoadedPage(page_index); page_ptr) {
       loaded_frequencies_[page_infos_[page_index].storage_index].first += 1;
       return page_ptr;
     }

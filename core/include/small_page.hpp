@@ -74,6 +74,10 @@ class SmallPageAdvanced {
  public:
   struct Payload {
     uint32_t expiration_time;
+
+    bool operator==(const Payload& other) const noexcept {
+      return expiration_time == other.expiration_time;
+    }
   };
 
   explicit SmallPageAdvanced(TTinyLFU& tiny_lfu) noexcept
@@ -112,7 +116,7 @@ class SmallPageAdvanced {
     utils::LoadArrayFromBuffer(buffer, payload_);
     std::advance(buffer, payload_.size() * sizeof(payload_[0]));
     utils::BinaryRead(buffer, &last_free_slot_, sizeof(last_free_slot_));
-    std::advance(buffer, sizeof(size_t));
+    std::advance(buffer, sizeof(last_free_slot_));
   }
 
   void Store(char* buffer) const noexcept {
@@ -125,7 +129,7 @@ class SmallPageAdvanced {
     utils::StoreArrayToBuffer(buffer, payload_);
     std::advance(buffer, payload_.size() * sizeof(payload_[0]));
     utils::BinaryWrite(buffer, &last_free_slot_, sizeof(last_free_slot_));
-    std::advance(buffer, sizeof(size_t));
+    std::advance(buffer, sizeof(last_free_slot_));
   }
 
   bool Get(Key key, uint32_t now) noexcept {
@@ -193,7 +197,9 @@ class SmallPageAdvanced {
   }
 
   bool operator==(const SmallPageAdvanced& other) const noexcept {
-    return records_ == other.records_;
+    return records_ == other.records_ && 
+           payload_ == other.payload_ &&
+           last_free_slot_ == other.last_free_slot_;
   }
 
  private:
